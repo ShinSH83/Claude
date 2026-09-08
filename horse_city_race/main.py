@@ -31,6 +31,29 @@ RIVAL_COLORS = [(90, 90, 200), (200, 90, 90), (90, 170, 90)]
 PLAYER_X = 140
 HORSE_W, HORSE_H = 78, 52
 
+KOREAN_FONT_CANDIDATES = [
+    "malgun gothic",
+    "applegothic",
+    "applesdgothicneo",
+    "notosanscjkkr",
+    "notosanskr",
+    "nanumgothic",
+    "nanumbarungothic",
+    "unbatang",
+    "unfonts",
+    "gulim",
+    "batang",
+    "droidsansfallback",
+]
+
+
+def load_korean_font(size, bold=False):
+    for name in KOREAN_FONT_CANDIDATES:
+        path = pygame.font.match_font(name, bold=bold)
+        if path:
+            return pygame.font.Font(path, size)
+    return pygame.font.SysFont(None, size, bold=bold)
+
 
 def draw_horse(surface, x, y, color, leg_phase, ducking=False):
     body_h = HORSE_H - 14 if ducking else HORSE_H
@@ -211,8 +234,8 @@ class Game:
         pygame.display.set_caption("City Gallop: Horse Race")
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont("malgungothic,arial", 22)
-        self.big_font = pygame.font.SysFont("malgungothic,arial", 46, bold=True)
+        self.font = load_korean_font(22)
+        self.big_font = load_korean_font(46, bold=True)
         self.reset()
 
     def reset(self):
@@ -338,26 +361,27 @@ class Game:
             pygame.draw.rect(self.screen, ROAD_LINE, (lx, GROUND_Y + 25, 22, 5))
 
     def draw_hud(self):
-        bar_x, bar_y, bar_w = 20, 16, WIDTH - 40
-        pygame.draw.rect(self.screen, (0, 0, 0, 80), (bar_x, bar_y, bar_w, 70), border_radius=8)
-        s = pygame.Surface((bar_w, 70), pygame.SRCALPHA)
-        pygame.draw.rect(s, (0, 0, 0, 110), (0, 0, bar_w, 70), border_radius=8)
+        bar_x, bar_y, bar_w, bar_h = 20, 14, WIDTH - 40, 96
+        s = pygame.Surface((bar_w, bar_h), pygame.SRCALPHA)
+        pygame.draw.rect(s, (0, 0, 0, 130), (0, 0, bar_w, bar_h), border_radius=8)
         self.screen.blit(s, (bar_x, bar_y))
 
         entries = [("나", self.player.distance, (150, 100, 55))]
         for rv in self.rivals:
             entries.append((rv.name, rv.distance, rv.color))
 
+        row_h = bar_h // len(entries)
         for i, (name, dist, color) in enumerate(entries):
-            y = bar_y + 6 + i * 15
-            pygame.draw.circle(self.screen, color, (bar_x + 12, y + 6), 5)
+            y = bar_y + row_h // 2 + i * row_h
+            pygame.draw.circle(self.screen, color, (bar_x + 12, y), 5)
             track_x = bar_x + 30
             track_w = bar_w - 120
-            pygame.draw.rect(self.screen, (255, 255, 255, 60), (track_x, y + 2, track_w, 6), 1)
+            pygame.draw.rect(self.screen, (255, 255, 255), (track_x, y - 3, track_w, 6), 1)
             fill = min(1.0, dist / FINISH_DISTANCE) * track_w
-            pygame.draw.rect(self.screen, color, (track_x, y + 2, max(2, fill), 6))
+            pygame.draw.rect(self.screen, color, (track_x, y - 3, max(2, fill), 6))
             label = self.font.render(name, True, WHITE)
-            self.screen.blit(label, (bar_x + 30 + track_w + 10, y - 4))
+            label_rect = label.get_rect(midleft=(track_x + track_w + 10, y))
+            self.screen.blit(label, label_rect)
 
         dist_text = self.font.render(
             f"거리: {int(self.player.distance)} / {FINISH_DISTANCE} m   코인: {self.score_coins}", True, BLACK
