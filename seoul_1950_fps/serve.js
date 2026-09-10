@@ -17,8 +17,20 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  let filePath = path.join(ROOT_DIR, decodeURIComponent(req.url.split('?')[0]));
-  if (filePath.endsWith('/')) filePath = path.join(filePath, 'index.html');
+  // URL 경로는 항상 '/'를 구분자로 쓰므로, OS별 경로 구분자로 바뀌는
+  // path.join을 거치기 전에 루트('/') 요청을 index.html로 매핑한다.
+  // (Windows에서 path.join이 '/'를 '\\'로 바꿔버려 endsWith('/') 검사가
+  //  항상 실패하고 루트 접속 시 404가 나던 버그를 여기서 고쳤다.)
+  let urlPath = decodeURIComponent(req.url.split('?')[0]);
+  if (urlPath === '' || urlPath.endsWith('/')) urlPath += 'index.html';
+
+  const filePath = path.join(ROOT_DIR, urlPath);
+  if (!filePath.startsWith(ROOT_DIR)) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404);

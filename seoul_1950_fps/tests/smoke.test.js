@@ -21,8 +21,11 @@ const MIME_TYPES = {
 function startServer() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
-      let filePath = path.join(ROOT_DIR, decodeURIComponent(req.url.split('?')[0]));
-      if (filePath.endsWith('/')) filePath = path.join(filePath, 'index.html');
+      // path.join이 Windows에서 '/'를 '\\'로 바꿔버리므로, OS별 구분자로
+      // 바뀌기 전에 URL 경로 상태에서 루트('/') 요청을 index.html로 매핑한다.
+      let urlPath = decodeURIComponent(req.url.split('?')[0]);
+      if (urlPath === '' || urlPath.endsWith('/')) urlPath += 'index.html';
+      const filePath = path.join(ROOT_DIR, urlPath);
       fs.readFile(filePath, (err, data) => {
         if (err) {
           res.writeHead(404);
