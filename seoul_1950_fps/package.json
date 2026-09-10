@@ -4,6 +4,7 @@
   "private": true,
   "description": "1950년 서울 시가전 배경 픽셀아트 3D FPS 게임 (레이캐스팅 엔진, 조작 골격)",
   "scripts": {
+    "serve": "node serve.js",
     "test": "node tests/smoke.test.js"
   },
   "devDependencies": {
