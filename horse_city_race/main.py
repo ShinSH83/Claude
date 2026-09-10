@@ -17,27 +17,29 @@ SPEED_RAMP = 0.0011
 
 FINISH_DISTANCE = 2200
 
-SKY_TOP = (120, 200, 255)
-SKY_HORIZON = (255, 214, 175)
-ROAD = (86, 84, 96)
+PIXEL_SCALE = 4
+
+SKY_TOP = (120, 195, 245)
+SKY_HORIZON = (255, 222, 190)
+ROAD = (120, 96, 70)
 ROAD_LINE = (255, 255, 255)
-GROUND_GRASS = (128, 205, 96)
+GROUND_GRASS = (108, 180, 78)
 WHITE = (255, 255, 255)
 BLACK = (20, 20, 20)
 DARK = (30, 30, 40)
 
-OUTLINE = (40, 28, 26)
-OUTLINE_W = 3
+OUTLINE = (35, 26, 24)
+OUTLINE_W = 4
 
 PLAYER_COAT = (216, 144, 82)
 PLAYER_MANE = (58, 40, 30)
+PLAYER_JOCKEY = ((225, 55, 55), (250, 205, 40))
 
-BUILDING_COLORS = [
-    (255, 179, 186),
-    (186, 225, 255),
-    (255, 223, 165),
-    (200, 236, 200),
-    (223, 200, 255),
+SKYLINE_COLORS = [
+    (150, 160, 188),
+    (132, 144, 172),
+    (168, 158, 150),
+    (145, 150, 178),
 ]
 
 RIVAL_COLORS = [(90, 110, 235), (235, 90, 90), (90, 195, 120)]
@@ -71,6 +73,13 @@ def load_korean_font(size, bold=False):
 
 def shade(color, factor):
     return tuple(max(0, min(255, int(c * factor))) for c in color)
+
+
+def pixelate(surface):
+    w, h = surface.get_size()
+    sw, sh = max(1, w // PIXEL_SCALE), max(1, h // PIXEL_SCALE)
+    small = pygame.transform.scale(surface, (sw, sh))
+    return pygame.transform.scale(small, (w, h))
 
 
 def vertical_gradient(size, top_color, bottom_color):
@@ -122,11 +131,26 @@ def cel_shine_ellipse(surface, rect, color, scale=0.45):
     pygame.draw.ellipse(surface, color, shine_rect)
 
 
-def draw_horse(surface, x, y, coat, mane, leg_phase, ducking=False, moving=False):
+def draw_jockey(surface, x, y, body_h, helmet_color, jersey_color):
+    seat = (x + HORSE_W - 42, y - body_h - 8)
+
+    draw_outlined_line(surface, (55, 45, 60), (seat[0] - 1, seat[1] - 2), (seat[0] - 9, y - body_h + 8), 5)
+    draw_outlined_line(surface, jersey_color, (seat[0] - 1, seat[1] - 14), (x + HORSE_W - 16, y - body_h - 12), 4)
+
+    torso_rect = pygame.Rect(int(seat[0] - 7), int(seat[1] - 22), 14, 20)
+    draw_outlined_rect(surface, jersey_color, torso_rect, border_radius=3)
+
+    head_c = (int(seat[0]), int(seat[1] - 27))
+    draw_outlined_circle(surface, (235, 195, 160), head_c, 6)
+    helmet_rect = pygame.Rect(head_c[0] - 7, head_c[1] - 9, 14, 8)
+    draw_outlined_ellipse(surface, helmet_color, helmet_rect)
+
+
+def draw_horse(surface, x, y, coat, mane, leg_phase, ducking=False, moving=False, jockey_colors=None):
     body_h = HORSE_H - 14 if ducking else HORSE_H
     body_w = HORSE_W - 18
 
-    pygame.draw.ellipse(surface, (70, 150, 60), (int(x) - 2, GROUND_Y - 6, HORSE_W, 10))
+    pygame.draw.ellipse(surface, shade(GROUND_GRASS, 0.7), (int(x) - 2, GROUND_Y - 6, HORSE_W, 10))
 
     if moving:
         for i, dx in enumerate((16, 28, 40)):
@@ -136,6 +160,9 @@ def draw_horse(surface, x, y, coat, mane, leg_phase, ducking=False, moving=False
     body_rect = pygame.Rect(int(x), int(y - body_h), body_w, body_h - 10)
     draw_outlined_ellipse(surface, coat, body_rect)
     cel_shine_ellipse(surface, body_rect, shade(coat, 1.3))
+
+    blanket_rect = pygame.Rect(int(x + body_w * 0.28), int(y - body_h + 1), 20, 15)
+    draw_outlined_rect(surface, jockey_colors[1] if jockey_colors else shade(coat, 0.55), blanket_rect, border_radius=2)
 
     neck_top = (x + HORSE_W - 30, y - body_h - 18)
     neck_pts = [
@@ -156,9 +183,8 @@ def draw_horse(surface, x, y, coat, mane, leg_phase, ducking=False, moving=False
     pygame.draw.circle(surface, OUTLINE, (head_center[0] + 6, head_center[1] + 6), 6, 1)
 
     eye_c = (head_center[0] + 2, head_center[1] - 3)
-    pygame.draw.ellipse(surface, OUTLINE, (eye_c[0] - 5, eye_c[1] - 6, 9, 11))
-    pygame.draw.ellipse(surface, (35, 25, 45), (eye_c[0] - 4, eye_c[1] - 5, 7, 9))
-    pygame.draw.circle(surface, WHITE, (eye_c[0] - 1, eye_c[1] - 3), 2)
+    pygame.draw.circle(surface, OUTLINE, eye_c, 3)
+    pygame.draw.circle(surface, WHITE, (eye_c[0] - 1, eye_c[1] - 1), 1)
 
     pygame.draw.polygon(
         surface,
@@ -195,6 +221,9 @@ def draw_horse(surface, x, y, coat, mane, leg_phase, ducking=False, moving=False
         pygame.draw.circle(surface, (250, 250, 245), foot, 3)
         pygame.draw.circle(surface, OUTLINE, foot, 3, 1)
 
+    if jockey_colors:
+        draw_jockey(surface, x, y, body_h, jockey_colors[0], jockey_colors[1])
+
     return pygame.Rect(int(x), int(y - body_h - 16), HORSE_W - 4, body_h + 16)
 
 
@@ -230,7 +259,9 @@ class Player:
         return pygame.Rect(int(self.x) + 4, int(self.y - body_h - 14), HORSE_W - 14, body_h + 12)
 
     def draw(self, surface):
-        draw_horse(surface, self.x, self.y, PLAYER_COAT, PLAYER_MANE, self.leg_phase, moving=self.on_ground)
+        draw_horse(
+            surface, self.x, self.y, PLAYER_COAT, PLAYER_MANE, self.leg_phase, moving=self.on_ground, jockey_colors=PLAYER_JOCKEY
+        )
 
 
 class Obstacle:
@@ -254,7 +285,7 @@ class Obstacle:
         local = pygame.Rect(pad, pad, self.w, self.h)
 
         if self.kind == "barrel":
-            draw_outlined_rect(sprite, (222, 104, 52), local, border_radius=8)
+            draw_outlined_rect(sprite, (222, 104, 52), local, border_radius=6)
             pygame.draw.rect(sprite, OUTLINE, (local.left, local.centery - 2, local.width, 4))
             cel_shine_ellipse(sprite, local, (255, 176, 130), scale=0.4)
         elif self.kind == "cone":
@@ -329,7 +360,7 @@ class Coin:
 
 
 class Building:
-    PAD = 8
+    PAD = 6
 
     def __init__(self, x, w, h, color, layer):
         self.x = x
@@ -346,17 +377,13 @@ class Building:
         body_rect = pygame.Rect(pad, pad, self.w, body_h)
 
         draw_outlined_rect(sprite, self.color, body_rect)
-        pygame.draw.rect(sprite, OUTLINE, (body_rect.left, body_rect.top, body_rect.width, 5))
 
-        win_lit = (255, 244, 175)
-        win_dark = shade(self.color, 0.6)
+        win_lit = (250, 235, 190)
         rng = random.Random(int(self.x * 13 + self.w * 7 + self.h))
-        for wy in range(body_rect.top + 14, body_rect.bottom - 10, 20):
-            for wx in range(body_rect.left + 8, body_rect.right - 8, 16):
-                lit = rng.random() < 0.45
-                wr = pygame.Rect(wx, wy, 8, 10)
-                pygame.draw.rect(sprite, win_lit if lit else win_dark, wr)
-                pygame.draw.rect(sprite, OUTLINE, wr, 1)
+        for wy in range(body_rect.top + 14, body_rect.bottom - 10, 22):
+            for wx in range(body_rect.left + 8, body_rect.right - 8, 18):
+                if rng.random() < 0.22:
+                    pygame.draw.rect(sprite, win_lit, (wx, wy, 6, 8))
 
         return sprite
 
@@ -366,6 +393,100 @@ class Building:
     def draw(self, surface):
         top = GROUND_Y - 60 - self.h
         surface.blit(self.sprite, (self.x - self.PAD, top - self.PAD))
+
+
+class Tree:
+    def __init__(self, x, kind, scale):
+        self.x = x
+        self.kind = kind
+        self.scale = scale
+        self.sprite = self._build_sprite()
+
+    def _build_sprite(self):
+        if self.kind == "pine":
+            w, h = int(44 * self.scale), int(94 * self.scale)
+            pad = 6
+            surf = pygame.Surface((w + pad * 2, h + pad * 2), pygame.SRCALPHA)
+            trunk = pygame.Rect(pad + w // 2 - 4, pad + h - 16, 8, 16)
+            draw_outlined_rect(surf, (112, 80, 52), trunk)
+            layers = 4
+            base_green = (42, 118, 64)
+            for i in range(layers):
+                seg_h = (h - 18) // layers
+                top_y = pad + i * seg_h * 0.72
+                lw = w - i * (w // (layers + 2))
+                cx = pad + w // 2
+                pts = [(cx, top_y), (cx - lw // 2, top_y + seg_h), (cx + lw // 2, top_y + seg_h)]
+                draw_outlined_polygon(surf, shade(base_green, 1.0 + 0.1 * i), pts)
+            return surf
+
+        w, h = int(66 * self.scale), int(64 * self.scale)
+        pad = 6
+        surf = pygame.Surface((w + pad * 2, h + 28 + pad * 2), pygame.SRCALPHA)
+        trunk = pygame.Rect(pad + w // 2 - 4, pad + h - 4, 8, 26)
+        draw_outlined_rect(surf, (112, 80, 52), trunk)
+        blobs = [
+            (w * 0.3, h * 0.48, h * 0.32),
+            (w * 0.55, h * 0.28, h * 0.38),
+            (w * 0.78, h * 0.5, h * 0.28),
+            (w * 0.52, h * 0.62, h * 0.36),
+        ]
+        for bx, by, br in blobs:
+            rect = pygame.Rect(int(pad + bx - br), int(pad + by - br), int(br * 2), int(br * 2))
+            draw_outlined_ellipse(surf, (66, 158, 76), rect)
+        rng = random.Random(int(self.x * 11 + 7))
+        for _ in range(16):
+            bx, by, br = blobs[rng.randrange(len(blobs))]
+            dx = pad + bx + rng.uniform(-br * 0.6, br * 0.6)
+            dy = pad + by + rng.uniform(-br * 0.6, br * 0.6)
+            col = (92, 182, 96) if rng.random() < 0.5 else (48, 128, 58)
+            pygame.draw.circle(surf, col, (int(dx), int(dy)), 3)
+        return surf
+
+    def update(self, speed):
+        self.x -= speed * 0.55
+
+    def draw(self, surface):
+        surface.blit(self.sprite, (self.x, GROUND_Y - 55 - self.sprite.get_height()))
+
+
+class Mountains:
+    def __init__(self):
+        self.sprite = self._build()
+
+    def _build(self):
+        h = 90
+        w = WIDTH + 60
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        rng = random.Random(4242)
+        pts = [(0, h)]
+        x = 0
+        peaks = []
+        while x < w:
+            x += rng.randint(70, 120)
+            peak_h = rng.randint(28, h - 12)
+            peaks.append((x, h - peak_h))
+            pts.append((x, h - peak_h))
+        pts.append((w, h))
+        pygame.draw.polygon(surf, (150, 163, 196), pts)
+        for px, py in peaks:
+            pygame.draw.polygon(surf, (220, 226, 238), [(px - 9, py + 13), (px, py), (px + 9, py + 13)])
+        return surf
+
+    def draw(self, surface):
+        surface.blit(self.sprite, (-30, GROUND_Y - 150))
+
+
+def draw_fence(surface, scroll):
+    rail_y = GROUND_Y
+    post_w, gap = 6, 34
+    for i in range(-1, WIDTH // gap + 2):
+        px = i * gap + scroll
+        post = pygame.Rect(int(px), rail_y - 24, post_w, 26)
+        draw_outlined_rect(surface, (150, 120, 80), post)
+    for ry in (rail_y - 20, rail_y - 8):
+        pygame.draw.rect(surface, (238, 232, 216), (0, ry, WIDTH, 5))
+        pygame.draw.rect(surface, OUTLINE, (0, ry, WIDTH, 5), 1)
 
 
 class Cloud:
@@ -390,7 +511,7 @@ class Cloud:
         return sprite
 
     def update(self, speed):
-        self.x -= speed * 0.15
+        self.x -= speed * 0.1
 
     def draw(self, surface):
         surface.blit(self.sprite, (self.x, self.y))
@@ -421,7 +542,8 @@ class Game:
 
         self.sky = vertical_gradient((WIDTH, HEIGHT), SKY_TOP, SKY_HORIZON)
         self.ground_grad = vertical_gradient((WIDTH, 60), shade(GROUND_GRASS, 1.15), shade(GROUND_GRASS, 0.8))
-        self.road_grad = vertical_gradient((WIDTH, HEIGHT - GROUND_Y), shade(ROAD, 1.3), shade(ROAD, 0.65))
+        self.road_grad = vertical_gradient((WIDTH, HEIGHT - GROUND_Y), shade(ROAD, 1.25), shade(ROAD, 0.6))
+        self.mountains = Mountains()
 
         self.reset()
 
@@ -430,8 +552,9 @@ class Game:
         self.obstacles = []
         self.coins = []
         self.buildings = []
+        self.trees = []
         self.clouds = [
-            Cloud(random.uniform(0, WIDTH), random.uniform(20, 140), random.uniform(0.7, 1.3)) for _ in range(4)
+            Cloud(random.uniform(0, WIDTH), random.uniform(20, 130), random.uniform(0.7, 1.3)) for _ in range(4)
         ]
         self.rivals = [
             Rival("적토마", RIVAL_COLORS[0], 0.97),
@@ -446,19 +569,31 @@ class Game:
         self.score_coins = 0
         self.result_rank = None
         self.road_scroll = 0
+        self.fence_scroll = 0
+
+        x = 0
+        while x < WIDTH + 220:
+            b = self.make_building(x)
+            self.buildings.append(b)
+            x += b.w + random.randint(20, 60)
 
         x = 0
         while x < WIDTH + 200:
-            b = self.make_building(x)
-            self.buildings.append(b)
-            x += b.w + random.randint(10, 40)
+            t = self.make_tree(x)
+            self.trees.append(t)
+            x += t.sprite.get_width() + random.randint(20, 70)
 
     def make_building(self, x):
-        h = random.randint(60, 200)
-        w = random.randint(60, 120)
-        layer = random.choice([0.3, 0.5])
-        color = random.choice(BUILDING_COLORS)
+        h = random.randint(50, 140)
+        w = random.randint(50, 100)
+        layer = random.uniform(0.12, 0.2)
+        color = random.choice(SKYLINE_COLORS)
         return Building(x, w, h, color, layer)
+
+    def make_tree(self, x):
+        kind = random.choice(["pine", "pine", "round"])
+        scale = random.uniform(0.8, 1.35)
+        return Tree(x, kind, scale)
 
     def spawn_obstacle(self):
         self.obstacles.append(Obstacle(WIDTH + 40))
@@ -483,6 +618,7 @@ class Game:
         self.time_elapsed += 1
         self.speed = min(MAX_SPEED, BASE_SPEED + self.time_elapsed * SPEED_RAMP)
         self.road_scroll = (self.road_scroll - self.speed) % 40
+        self.fence_scroll = (self.fence_scroll - self.speed) % 34
 
         self.player.update(self.speed)
 
@@ -490,14 +626,21 @@ class Game:
             cl.update(self.speed)
             if cl.x + cl.sprite.get_width() < -20:
                 cl.x = WIDTH + random.uniform(0, 100)
-                cl.y = random.uniform(20, 140)
+                cl.y = random.uniform(20, 130)
 
         for b in self.buildings:
             b.update(self.speed)
         self.buildings = [b for b in self.buildings if b.x + b.w > -20]
         if not self.buildings or self.buildings[-1].x + self.buildings[-1].w < WIDTH:
             last_x = self.buildings[-1].x + self.buildings[-1].w if self.buildings else WIDTH
-            self.buildings.append(self.make_building(last_x + random.randint(10, 40)))
+            self.buildings.append(self.make_building(last_x + random.randint(20, 60)))
+
+        for t in self.trees:
+            t.update(self.speed)
+        self.trees = [t for t in self.trees if t.x + t.sprite.get_width() > -20]
+        if not self.trees or self.trees[-1].x + self.trees[-1].sprite.get_width() < WIDTH:
+            last_x = self.trees[-1].x + self.trees[-1].sprite.get_width() if self.trees else WIDTH
+            self.trees.append(self.make_tree(last_x + random.randint(20, 70)))
 
         self.spawn_timer -= 1
         if self.spawn_timer <= 0:
@@ -548,16 +691,20 @@ class Game:
 
     def draw_background(self):
         self.screen.blit(self.sky, (0, 0))
+        self.mountains.draw(self.screen)
         for cl in self.clouds:
             cl.draw(self.screen)
         for b in self.buildings:
             b.draw(self.screen)
+        for t in self.trees:
+            t.draw(self.screen)
 
         self.screen.blit(self.ground_grad, (0, GROUND_Y - 60))
         self.screen.blit(self.road_grad, (0, GROUND_Y))
         for i in range(-1, WIDTH // 40 + 2):
             lx = i * 40 + self.road_scroll
             pygame.draw.rect(self.screen, ROAD_LINE, (lx, GROUND_Y + 25, 22, 5))
+        draw_fence(self.screen, self.fence_scroll)
 
     def draw_hud(self):
         bar_x, bar_y, bar_w, bar_h = 20, 14, WIDTH - 40, 96
@@ -597,6 +744,7 @@ class Game:
         for c in self.coins:
             c.draw(self.screen, self.time_elapsed)
         self.player.draw(self.screen)
+        self.screen.blit(pixelate(self.screen), (0, 0))
         self.draw_hud()
 
     def draw_center_text(self, lines, y_start=170):
@@ -604,12 +752,25 @@ class Game:
         for i, (text, font, color) in enumerate(lines):
             surf = font.render(text, True, color)
             rect = surf.get_rect(center=(WIDTH // 2, y))
+            outline = font.render(text, True, WHITE)
+            for ox, oy in ((-2, 0), (2, 0), (0, -2), (0, 2), (-2, -2), (2, 2), (-2, 2), (2, -2)):
+                self.screen.blit(outline, rect.move(ox, oy))
             self.screen.blit(surf, rect)
             y += rect.height + 12
 
     def draw_start(self):
         self.draw_background()
-        draw_horse(self.screen, PLAYER_X, GROUND_Y, PLAYER_COAT, PLAYER_MANE, pygame.time.get_ticks() * 0.01, moving=True)
+        draw_horse(
+            self.screen,
+            PLAYER_X,
+            GROUND_Y,
+            PLAYER_COAT,
+            PLAYER_MANE,
+            pygame.time.get_ticks() * 0.01,
+            moving=True,
+            jockey_colors=PLAYER_JOCKEY,
+        )
+        self.screen.blit(pixelate(self.screen), (0, 0))
         self.draw_center_text(
             [
                 ("City Gallop: Horse Race", self.big_font, DARK),
