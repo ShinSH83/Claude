@@ -48,13 +48,19 @@ RIVAL_COLORS = [(90, 110, 235), (235, 90, 90), (90, 195, 120)]
 RIVAL_COATS = [(150, 72, 46), (232, 228, 218), (58, 48, 44)]
 RIVAL_MANES = [(62, 32, 20), (198, 192, 180), (24, 20, 18)]
 RIVAL_HELMETS = [(255, 225, 70), (240, 245, 250), (230, 60, 60)]
-RIVAL_LANE_OFFSETS = [-8, -18, -28]
-RIVAL_BASE_STAGGER = [-45, -85, -125]
+RIVAL_LANE_OFFSETS = [-12, -26, -40]
+RIVAL_DEPTH_SHEAR = 3.0
 RIVAL_X_SCALE = 0.8
 RIVAL_X_MAX_OFFSET = 200
 
 PLAYER_X = 140
 HORSE_W, HORSE_H = 78, 52
+
+FLOOR_TILT = 40
+
+
+def seam_y(x):
+    return GROUND_Y - FLOOR_TILT + FLOOR_TILT * (x / WIDTH)
 
 KOREAN_FONT_CANDIDATES = [
     "malgun gothic",
@@ -89,6 +95,17 @@ def pixelate(surface):
     sw, sh = max(1, w // PIXEL_SCALE), max(1, h // PIXEL_SCALE)
     small = pygame.transform.scale(surface, (sw, sh))
     return pygame.transform.scale(small, (w, h))
+
+
+def draw_tilted_gradient(surface, top_fn, bottom_fn, color_top, color_bottom, bands=8):
+    for i in range(bands):
+        t0, t1 = i / bands, (i + 1) / bands
+        c = tuple(int(color_top[k] + (color_bottom[k] - color_top[k]) * (t0 + t1) / 2) for k in range(3))
+        y0l = top_fn(0) + (bottom_fn(0) - top_fn(0)) * t0
+        y0r = top_fn(WIDTH) + (bottom_fn(WIDTH) - top_fn(WIDTH)) * t0
+        y1l = top_fn(0) + (bottom_fn(0) - top_fn(0)) * t1
+        y1r = top_fn(WIDTH) + (bottom_fn(WIDTH) - top_fn(WIDTH)) * t1
+        pygame.draw.polygon(surface, c, [(0, y0l), (WIDTH, y0r), (WIDTH, y1r), (0, y1l)])
 
 
 def vertical_gradient(size, top_color, bottom_color):
@@ -489,15 +506,17 @@ class Mountains:
 
 
 def draw_fence(surface, scroll):
-    rail_y = GROUND_Y
     post_w, gap = 6, 34
     for i in range(-1, WIDTH // gap + 2):
         px = i * gap + scroll
-        post = pygame.Rect(int(px), rail_y - 24, post_w, 26)
+        base_y = seam_y(px)
+        post = pygame.Rect(int(px), int(base_y - 24), post_w, 26)
         draw_outlined_rect(surface, (150, 120, 80), post)
-    for ry in (rail_y - 20, rail_y - 8):
-        pygame.draw.rect(surface, (238, 232, 216), (0, ry, WIDTH, 5))
-        pygame.draw.rect(surface, OUTLINE, (0, ry, WIDTH, 5), 1)
+    for off in (-20, -8):
+        y0, y1 = seam_y(0) + off, seam_y(WIDTH) + off
+        pts = [(0, y0), (WIDTH, y1), (WIDTH, y1 + 5), (0, y0 + 5)]
+        pygame.draw.polygon(surface, (238, 232, 216), pts)
+        pygame.draw.polygon(surface, OUTLINE, pts, 1)
 
 
 class Cloud:
@@ -529,7 +548,7 @@ class Cloud:
 
 
 class Rival:
-    def __init__(self, name, jersey_color, coat, mane, helmet, skill, lane_offset, phase_offset, base_stagger):
+    def __init__(self, name, jersey_color, coat, mane, helmet, skill, lane_offset, phase_offset):
         self.name = name
         self.color = jersey_color
         self.coat = coat
@@ -539,7 +558,6 @@ class Rival:
         self.distance = 0.0
         self.lane_offset = lane_offset
         self.leg_phase = phase_offset
-        self.base_stagger = base_stagger
 
     def update(self, speed):
         variance = random.uniform(-1.2, 1.4)
@@ -549,9 +567,10 @@ class Rival:
         self.leg_phase += 0.32 + speed * 0.028
 
     def screen_x(self, player_distance):
-        offset = (self.distance - player_distance) * RIVAL_X_SCALE
-        offset = max(-RIVAL_X_MAX_OFFSET, min(RIVAL_X_MAX_OFFSET, offset))
-        return PLAYER_X + self.base_stagger + offset
+        pace_offset = (self.distance - player_distance) * RIVAL_X_SCALE
+        pace_offset = max(-RIVAL_X_MAX_OFFSET, min(RIVAL_X_MAX_OFFSET, pace_offset))
+        depth_shift = self.lane_offset * RIVAL_DEPTH_SHEAR
+        return PLAYER_X + depth_shift + pace_offset
 
     def draw(self, surface, player_distance):
         x = self.screen_x(player_distance)
@@ -581,11 +600,20 @@ class Game:
         self.big_font = load_korean_font(46, bold=True)
 
         self.sky = vertical_gradient((WIDTH, HEIGHT), SKY_TOP, SKY_HORIZON)
-        self.ground_grad = vertical_gradient((WIDTH, 60), shade(GROUND_GRASS, 1.15), shade(GROUND_GRASS, 0.8))
-        self.road_grad = vertical_gradient((WIDTH, HEIGHT - GROUND_Y), shade(ROAD, 1.25), shade(ROAD, 0.6))
+        self.ground_surface = self._build_ground_surface()
         self.mountains = Mountains()
 
         self.reset()
+
+    def _build_ground_surface(self):
+        surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        draw_tilted_gradient(
+            surf, lambda x: GROUND_Y - 60, seam_y, shade(GROUND_GRASS, 1.15), shade(GROUND_GRASS, 0.8)
+        )
+        draw_tilted_gradient(
+            surf, seam_y, lambda x: HEIGHT, shade(ROAD, 1.25), shade(ROAD, 0.6)
+        )
+        return surf
 
     def reset(self):
         self.player = Player()
@@ -599,15 +627,15 @@ class Game:
         self.rivals = [
             Rival(
                 "적토마", RIVAL_COLORS[0], RIVAL_COATS[0], RIVAL_MANES[0], RIVAL_HELMETS[0],
-                0.97, RIVAL_LANE_OFFSETS[0], 0.0, RIVAL_BASE_STAGGER[0],
+                0.97, RIVAL_LANE_OFFSETS[0], 0.0,
             ),
             Rival(
                 "백마", RIVAL_COLORS[1], RIVAL_COATS[1], RIVAL_MANES[1], RIVAL_HELMETS[1],
-                1.0, RIVAL_LANE_OFFSETS[1], 1.4, RIVAL_BASE_STAGGER[1],
+                1.0, RIVAL_LANE_OFFSETS[1], 1.4,
             ),
             Rival(
                 "흑마", RIVAL_COLORS[2], RIVAL_COATS[2], RIVAL_MANES[2], RIVAL_HELMETS[2],
-                1.03, RIVAL_LANE_OFFSETS[2], 2.6, RIVAL_BASE_STAGGER[2],
+                1.03, RIVAL_LANE_OFFSETS[2], 2.6,
             ),
         ]
         self.speed = BASE_SPEED
@@ -761,11 +789,10 @@ class Game:
         for t in self.trees:
             t.draw(self.screen)
 
-        self.screen.blit(self.ground_grad, (0, GROUND_Y - 60))
-        self.screen.blit(self.road_grad, (0, GROUND_Y))
+        self.screen.blit(self.ground_surface, (0, 0))
         for i in range(-1, WIDTH // 40 + 2):
             lx = i * 40 + self.road_scroll
-            pygame.draw.rect(self.screen, ROAD_LINE, (lx, GROUND_Y + 25, 22, 5))
+            pygame.draw.rect(self.screen, ROAD_LINE, (lx, seam_y(lx) + 25, 22, 5))
         draw_fence(self.screen, self.fence_scroll)
 
     def draw_hud(self):
