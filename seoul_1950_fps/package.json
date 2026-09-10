@@ -1,0 +1,12 @@
+{
+  "name": "seoul-1950-fps",
+  "version": "0.1.0",
+  "private": true,
+  "description": "1950년 서울 시가전 배경 픽셀아트 3D FPS 게임 (레이캐스팅 엔진, 조작 골격)",
+  "scripts": {
+    "test": "node tests/smoke.test.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}

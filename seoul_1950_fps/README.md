@@ -56,14 +56,17 @@ python3 -m http.server 8080
 seoul_1950_fps/
 ├── index.html          # 시작/일시정지/게임오버 화면 및 캔버스
 ├── style.css            # UI 스타일 (픽셀아트 렌더링 설정 포함)
-└── js/
-    ├── map.js            # 시가전 지도 데이터 (건물/바리케이드/지뢰 타일)
-    ├── textures.js        # 벽/바닥 픽셀아트 텍스처 절차적 생성
-    ├── player.js          # 플레이어 이동, 충돌, 체력 로직
-    ├── input.js           # 키보드 및 마우스(포인터락) 입력
-    ├── raycaster.js       # DDA 레이캐스팅 3D 렌더링 엔진
-    ├── hud.js             # 체력바, 무기, 조준점, 탄약 등 HUD
-    └── main.js            # 게임 루프 및 상태(시작/플레이/일시정지/게임오버) 관리
+├── package.json         # 테스트 실행용 npm 스크립트 및 devDependency
+├── js/
+│   ├── map.js            # 시가전 지도 데이터 (건물/바리케이드/지뢰 타일)
+│   ├── textures.js        # 벽/바닥 픽셀아트 텍스처 절차적 생성
+│   ├── player.js          # 플레이어 이동, 충돌, 체력 로직
+│   ├── input.js           # 키보드 및 마우스(포인터락) 입력
+│   ├── raycaster.js       # DDA 레이캐스팅 3D 렌더링 엔진
+│   ├── hud.js             # 체력바, 무기, 조준점, 탄약 등 HUD
+│   └── main.js            # 게임 루프 및 상태(시작/플레이/일시정지/게임오버) 관리
+└── tests/
+    └── smoke.test.js      # Playwright 자동 스모크 테스트
 ```
 
 ## 다음 단계 (로드맵)
@@ -73,3 +76,25 @@ seoul_1950_fps/
 3. 여러 종류의 1950년대 무기(M1 카빈, 톰슨 기관단총, 수류탄 등) 추가
 4. 서울 시내 랜드마크를 반영한 확장된 지도 및 임무 목표(예: 중앙청 탈환)
 5. 픽셀아트 스프라이트 애니메이션 및 배경음/효과음
+
+## 테스트 실행
+
+Playwright로 시작 화면 → 이동/충돌 → 지뢰 피해 → 사망/게임오버 → 재시작 흐름을 자동 검증하는 스모크 테스트가 `tests/smoke.test.js`에 있다. 정적 서버를 스스로 띄우므로 별도 서버 실행 없이 바로 동작한다.
+
+```bash
+cd seoul_1950_fps
+npm install                       # playwright 설치
+npx playwright install chromium   # 최초 1회, 브라우저 바이너리 설치
+npm test                          # tests/smoke.test.js 실행
+```
+
+정상 통과 시 다음과 같이 출력된다.
+
+```
+1) 시작 화면
+  OK: 시작 화면이 표시된다
+2) 게임 시작
+  OK: 시작 버튼 클릭 시 시작 화면이 사라진다
+...
+모든 테스트 통과.
+```
