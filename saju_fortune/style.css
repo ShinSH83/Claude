@@ -1,0 +1,268 @@
+:root {
+  --bg: #14101f;
+  --bg-alt: #1c1730;
+  --card: #221b3a;
+  --card-border: #3a2f5c;
+  --text: #f1ecff;
+  --text-dim: #b6acd6;
+  --accent: #d9b45c;
+  --accent-soft: #f0d99a;
+  --danger: #e6667a;
+
+  --wood: #4caf6d;
+  --fire: #e2645a;
+  --earth: #c98f3f;
+  --metal: #cfd4dd;
+  --water: #4f8fdc;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  background: radial-gradient(circle at 20% 0%, #241a3d 0%, var(--bg) 55%);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+.hero {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.hero h1 {
+  font-size: 2.1rem;
+  margin: 0 0 8px;
+  letter-spacing: 0.02em;
+}
+
+.subtitle {
+  color: var(--text-dim);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+}
+
+.field {
+  margin-bottom: 18px;
+}
+
+.field label {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.optional {
+  color: #857aa8;
+  font-size: 0.8rem;
+}
+
+input[type="date"],
+input[type="time"],
+input[type="text"],
+select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: var(--bg-alt);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+input:focus, select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.time-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.time-row input[type="time"] {
+  flex: 1;
+  min-width: 140px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.checkbox-label input {
+  width: auto;
+  margin: 0;
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+  color: #241a08;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.submit-btn:hover {
+  filter: brightness(1.05);
+}
+
+.calc-note {
+  font-size: 0.78rem;
+  color: #857aa8;
+  margin: 12px 0 0;
+  text-align: center;
+}
+
+.error-msg {
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+
+.result {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.result.hidden {
+  display: none;
+}
+
+.result h2 {
+  font-size: 1.2rem;
+  margin: 0 0 14px;
+  color: var(--accent-soft);
+}
+
+.pillars {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.pillar {
+  background: var(--bg-alt);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 12px 6px;
+  text-align: center;
+}
+
+.pillar .pillar-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.ganji-char {
+  display: block;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.3;
+  border-radius: 8px;
+  padding: 4px 0;
+  margin-bottom: 4px;
+}
+
+.ganji-hanja {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+.el-wood { color: var(--wood); }
+.el-fire { color: var(--fire); }
+.el-earth { color: var(--earth); }
+.el-metal { color: var(--metal); }
+.el-water { color: var(--water); }
+
+.element-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.element-row {
+  display: grid;
+  grid-template-columns: 48px 1fr 28px;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88rem;
+}
+
+.bar-track {
+  background: var(--bg-alt);
+  border-radius: 6px;
+  height: 12px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 6px;
+}
+
+.fill-wood { background: var(--wood); }
+.fill-fire { background: var(--fire); }
+.fill-earth { background: var(--earth); }
+.fill-metal { background: var(--metal); }
+.fill-water { background: var(--water); }
+
+.reading p {
+  margin: 0 0 12px;
+  color: var(--text);
+}
+
+.reading p:last-child {
+  margin-bottom: 0;
+}
+
+.reading strong {
+  color: var(--accent-soft);
+}
+
+footer {
+  text-align: center;
+  color: #6d6394;
+  font-size: 0.78rem;
+  margin-top: 40px;
+}
+
+@media (max-width: 480px) {
+  .pillars {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
