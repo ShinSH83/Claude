@@ -4,6 +4,8 @@ import sys
 
 import pygame
 
+import audio
+
 WIDTH, HEIGHT = 900, 500
 FPS = 60
 
@@ -533,7 +535,9 @@ class Rival:
 
 class Game:
     def __init__(self):
+        self.sound = audio.SoundBank()
         pygame.init()
+        self.sound.init()
         pygame.display.set_caption("City Gallop: Horse Race")
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
@@ -605,14 +609,18 @@ class Game:
     def handle_start(self, event):
         if event.type == pygame.KEYDOWN and event.key in (pygame.K_SPACE, pygame.K_RETURN):
             self.state = "PLAYING"
+            self.sound.play("select")
 
     def handle_playing_event(self, event):
         if event.type == pygame.KEYDOWN and event.key in (pygame.K_SPACE, pygame.K_UP):
-            self.player.jump()
+            if self.player.on_ground:
+                self.player.jump()
+                self.sound.play("jump")
 
     def handle_gameover_event(self, event):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
             self.reset()
+            self.sound.play("select")
 
     def update_playing(self):
         self.time_elapsed += 1
@@ -620,7 +628,13 @@ class Game:
         self.road_scroll = (self.road_scroll - self.speed) % 40
         self.fence_scroll = (self.fence_scroll - self.speed) % 34
 
+        prev_leg_phase = self.player.leg_phase
+        was_on_ground = self.player.on_ground
         self.player.update(self.speed)
+        if was_on_ground and self.player.on_ground:
+            step_unit = math.pi / 2
+            if int(self.player.leg_phase / step_unit) != int(prev_leg_phase / step_unit):
+                self.sound.play("step", volume=0.5)
 
         for cl in self.clouds:
             cl.update(self.speed)
@@ -673,6 +687,7 @@ class Game:
             if not c.collected and player_rect.colliderect(c.rect()):
                 c.collected = True
                 self.score_coins += 1
+                self.sound.play("coin")
 
         if self.player.distance >= FINISH_DISTANCE:
             self.trigger_finish()
@@ -680,10 +695,12 @@ class Game:
     def trigger_gameover(self):
         self.state = "GAMEOVER"
         self.result_rank = self.compute_rank()
+        self.sound.play("crash")
 
     def trigger_finish(self):
         self.state = "FINISH"
         self.result_rank = self.compute_rank()
+        self.sound.play("finish")
 
     def compute_rank(self):
         ahead = sum(1 for rv in self.rivals if rv.distance > self.player.distance)
