@@ -9,58 +9,100 @@ import audio
 WIDTH, HEIGHT = 900, 500
 FPS = 60
 
-GROUND_Y = 380
-GRAVITY = 0.9
-JUMP_VELOCITY = -15.5
-
-BASE_SPEED = 6.0
-MAX_SPEED = 13.0
-SPEED_RAMP = 0.0011
-
-FINISH_DISTANCE = 2200
-
-PIXEL_SCALE = 4
-
 SKY_TOP = (120, 195, 245)
 SKY_HORIZON = (255, 222, 190)
-ROAD = (120, 96, 70)
-ROAD_LINE = (255, 255, 255)
-GROUND_GRASS = (108, 180, 78)
 WHITE = (255, 255, 255)
 BLACK = (20, 20, 20)
 DARK = (30, 30, 40)
-
 OUTLINE = (35, 26, 24)
 OUTLINE_W = 4
+
+# --- track geometry -----------------------------------------------------
+SEGMENT_LENGTH = 200
+HALF_ROAD_WIDTH = 800
+MAX_X_CLAMP = HALF_ROAD_WIDTH * 1.6
+
+NEAR_Z = 100
+CAMERA_DEPTH = 60
+ROAD_TOP_Y = 150
+ROAD_BOTTOM_Y = HEIGHT
+ROAD_ROWS = ROAD_BOTTOM_Y - ROAD_TOP_Y
+MAX_VISIBLE_Z = NEAR_Z * ROAD_ROWS
+
+ROAD_COLOR_A = (96, 92, 100)
+ROAD_COLOR_B = (86, 82, 90)
+RUMBLE_COLOR_A = (210, 60, 55)
+RUMBLE_COLOR_B = (235, 235, 225)
+GRASS_COLOR_A = (110, 185, 82)
+GRASS_COLOR_B = (98, 170, 72)
+
+TRACK_PLAN = [
+    (20, 0.0),
+    (14, 0.05),
+    (10, 0.0),
+    (16, -0.06),
+    (10, 0.0),
+    (10, 0.08),
+    (18, 0.0),
+    (10, -0.07),
+]
+
+
+def _expand_curves(plan):
+    curves = []
+    for count, curve in plan:
+        curves.extend([curve] * count)
+    return curves
+
+
+def _build_offsets(curves):
+    offsets = [0.0]
+    for c in curves:
+        offsets.append(offsets[-1] + c * SEGMENT_LENGTH)
+    return offsets
+
+
+TRACK_CURVES = _expand_curves(TRACK_PLAN)
+NUM_SEGMENTS = len(TRACK_CURVES)
+TRACK_LEN = NUM_SEGMENTS * SEGMENT_LENGTH
+TRACK_OFFSETS = _build_offsets(TRACK_CURVES)
+
+LAPS_TO_WIN = 3
+
+# --- racer physics --------------------------------------------------------
+PLAYER_MAX_SPEED = 9.5
+PLAYER_ACCEL = 0.16
+PLAYER_BRAKE = 0.32
+PLAYER_FRICTION = 0.10
+PLAYER_STEER_RATE = 9.0
+OFFTRACK_PENALTY = 0.55
+BOOST_MULT = 1.55
+BOOST_DURATION = 120
+
+JUMP_DURATION = 26
+JUMP_HEIGHT_PX = 46
+
+BUMP_Z_RANGE = 90
+BUMP_X_RANGE = 130
+BUMP_PUSH = 22
+BUMP_SLOWDOWN = 0.85
+
+ITEM_PICKUP_X = 140
+ITEM_COUNT = 8
 
 PLAYER_COAT = (216, 144, 82)
 PLAYER_MANE = (58, 40, 30)
 PLAYER_JOCKEY = ((225, 55, 55), (250, 205, 40))
 
-SKYLINE_COLORS = [
-    (150, 160, 188),
-    (132, 144, 172),
-    (168, 158, 150),
-    (145, 150, 178),
+AI_SPECS = [
+    {"name": "적토마", "coat": (150, 72, 46), "mane": (62, 32, 20), "helmet": (255, 225, 70), "jersey": (90, 110, 235), "max_speed": 9.2},
+    {"name": "백마", "coat": (232, 228, 218), "mane": (198, 192, 180), "helmet": (240, 245, 250), "jersey": (235, 90, 90), "max_speed": 9.6},
+    {"name": "흑마", "coat": (58, 48, 44), "mane": (24, 20, 18), "helmet": (230, 60, 60), "jersey": (90, 195, 120), "max_speed": 9.9},
 ]
 
-RIVAL_COLORS = [(90, 110, 235), (235, 90, 90), (90, 195, 120)]
-RIVAL_COATS = [(150, 72, 46), (232, 228, 218), (58, 48, 44)]
-RIVAL_MANES = [(62, 32, 20), (198, 192, 180), (24, 20, 18)]
-RIVAL_HELMETS = [(255, 225, 70), (240, 245, 250), (230, 60, 60)]
-RIVAL_LANE_OFFSETS = [-12, -26, -40]
-RIVAL_DEPTH_SHEAR = 3.0
-RIVAL_X_SCALE = 0.8
-RIVAL_X_MAX_OFFSET = 200
+PLAYER_X = HALF_ROAD_WIDTH  # unused placeholder to keep naming close to old code (not used for screen pos anymore)
 
-PLAYER_X = 140
 HORSE_W, HORSE_H = 78, 52
-
-FLOOR_TILT = 40
-
-
-def seam_y(x):
-    return GROUND_Y - FLOOR_TILT + FLOOR_TILT * (x / WIDTH)
 
 KOREAN_FONT_CANDIDATES = [
     "malgun gothic",
@@ -88,24 +130,6 @@ def load_korean_font(size, bold=False):
 
 def shade(color, factor):
     return tuple(max(0, min(255, int(c * factor))) for c in color)
-
-
-def pixelate(surface):
-    w, h = surface.get_size()
-    sw, sh = max(1, w // PIXEL_SCALE), max(1, h // PIXEL_SCALE)
-    small = pygame.transform.scale(surface, (sw, sh))
-    return pygame.transform.scale(small, (w, h))
-
-
-def draw_tilted_gradient(surface, top_fn, bottom_fn, color_top, color_bottom, bands=8):
-    for i in range(bands):
-        t0, t1 = i / bands, (i + 1) / bands
-        c = tuple(int(color_top[k] + (color_bottom[k] - color_top[k]) * (t0 + t1) / 2) for k in range(3))
-        y0l = top_fn(0) + (bottom_fn(0) - top_fn(0)) * t0
-        y0r = top_fn(WIDTH) + (bottom_fn(WIDTH) - top_fn(WIDTH)) * t0
-        y1l = top_fn(0) + (bottom_fn(0) - top_fn(0)) * t1
-        y1r = top_fn(WIDTH) + (bottom_fn(WIDTH) - top_fn(WIDTH)) * t1
-        pygame.draw.polygon(surface, c, [(0, y0l), (WIDTH, y0r), (WIDTH, y1r), (0, y1l)])
 
 
 def vertical_gradient(size, top_color, bottom_color):
@@ -172,22 +196,24 @@ def draw_jockey(surface, x, y, body_h, helmet_color, jersey_color):
     draw_outlined_ellipse(surface, helmet_color, helmet_rect)
 
 
-def draw_horse(surface, x, y, coat, mane, leg_phase, ducking=False, moving=False, jockey_colors=None, ground_ref_y=None):
+def draw_horse(surface, x, y, coat, mane, leg_phase, moving=False, jockey_colors=None, ground_ref_y=None):
     if ground_ref_y is None:
-        ground_ref_y = GROUND_Y
-    body_h = HORSE_H - 14 if ducking else HORSE_H
+        ground_ref_y = y
+    body_h = HORSE_H
     body_w = HORSE_W - 18
 
-    pygame.draw.ellipse(surface, shade(ROAD, 0.55), (int(x) - 2, ground_ref_y - 6, HORSE_W, 10))
+    pygame.draw.ellipse(surface, (70, 60, 40), (int(x) - 2, ground_ref_y - 6, HORSE_W, 10))
 
     if moving:
         for i, dx in enumerate((16, 28, 40)):
             ly = y - body_h + 6 + i * 9
             pygame.draw.line(surface, WHITE, (x - dx, ly), (x - dx - 14, ly), 2)
 
+    light = shade(coat, 1.3)
+
     body_rect = pygame.Rect(int(x), int(y - body_h), body_w, body_h - 10)
     draw_outlined_ellipse(surface, coat, body_rect)
-    cel_shine_ellipse(surface, body_rect, shade(coat, 1.3))
+    cel_shine_ellipse(surface, body_rect, light)
 
     blanket_rect = pygame.Rect(int(x + body_w * 0.28), int(y - body_h + 1), 20, 15)
     draw_outlined_rect(surface, jockey_colors[1] if jockey_colors else shade(coat, 0.55), blanket_rect, border_radius=2)
@@ -252,111 +278,42 @@ def draw_horse(surface, x, y, coat, mane, leg_phase, ducking=False, moving=False
     if jockey_colors:
         draw_jockey(surface, x, y, body_h, jockey_colors[0], jockey_colors[1])
 
-    return pygame.Rect(int(x), int(y - body_h - 16), HORSE_W - 4, body_h + 16)
+
+HORSE_CANVAS_W, HORSE_CANVAS_H = 150, 190
+HORSE_CANVAS_GROUND_Y = 150
+HORSE_CANVAS_ANCHOR_X = 59
 
 
-class Player:
-    def __init__(self):
-        self.x = PLAYER_X
-        self.y = GROUND_Y
-        self.vel_y = 0
-        self.on_ground = True
-        self.leg_phase = 0
-        self.alive = True
-        self.distance = 0.0
-
-    def jump(self):
-        if self.on_ground:
-            self.vel_y = JUMP_VELOCITY
-            self.on_ground = False
-
-    def update(self, speed):
-        if self.on_ground:
-            self.leg_phase += 0.35 + speed * 0.03
-        else:
-            self.vel_y += GRAVITY
-            self.y += self.vel_y
-            if self.y >= GROUND_Y:
-                self.y = GROUND_Y
-                self.vel_y = 0
-                self.on_ground = True
-        self.distance += speed * 0.12
-
-    def rect(self):
-        body_h = HORSE_H
-        return pygame.Rect(int(self.x) + 4, int(self.y - body_h - 14), HORSE_W - 14, body_h + 12)
-
-    def draw(self, surface):
-        draw_horse(
-            surface, self.x, self.y, PLAYER_COAT, PLAYER_MANE, self.leg_phase, moving=self.on_ground, jockey_colors=PLAYER_JOCKEY
-        )
+def render_racer_sprite(racer):
+    temp = pygame.Surface((HORSE_CANVAS_W, HORSE_CANVAS_H), pygame.SRCALPHA)
+    jump_offset = 0.0
+    if racer.jump_timer > 0:
+        t = 1 - racer.jump_timer / JUMP_DURATION
+        jump_offset = 4 * JUMP_HEIGHT_PX * t * (1 - t)
+    draw_horse(
+        temp,
+        20,
+        HORSE_CANVAS_GROUND_Y - jump_offset,
+        racer.coat,
+        racer.mane,
+        racer.leg_phase,
+        moving=racer.speed > 0.4,
+        jockey_colors=racer.jockey,
+        ground_ref_y=HORSE_CANVAS_GROUND_Y,
+    )
+    return temp
 
 
-class Obstacle:
-    KINDS = ["barrel", "cone", "puddle"]
-    PAD = 8
-
-    def __init__(self, x):
-        self.kind = random.choice(self.KINDS)
-        self.x = x
-        if self.kind == "barrel":
-            self.w, self.h = 32, 40
-        elif self.kind == "cone":
-            self.w, self.h = 24, 34
-        else:
-            self.w, self.h = 60, 10
-        self.sprite = self._build_sprite()
-
-    def _build_sprite(self):
-        pad = self.PAD
-        sprite = pygame.Surface((self.w + pad * 2, self.h + pad * 2), pygame.SRCALPHA)
-        local = pygame.Rect(pad, pad, self.w, self.h)
-
-        if self.kind == "barrel":
-            draw_outlined_rect(sprite, (222, 104, 52), local, border_radius=6)
-            pygame.draw.rect(sprite, OUTLINE, (local.left, local.centery - 2, local.width, 4))
-            cel_shine_ellipse(sprite, local, (255, 176, 130), scale=0.4)
-        elif self.kind == "cone":
-            pts = [(local.centerx, local.top), (local.left, local.bottom), (local.right, local.bottom)]
-            draw_outlined_polygon(sprite, (255, 128, 40), pts)
-            stripe = pygame.Rect(local.left + 3, local.bottom - 12, local.width - 6, 5)
-            pygame.draw.rect(sprite, WHITE, stripe)
-            pygame.draw.rect(sprite, OUTLINE, stripe, 1)
-        else:
-            draw_outlined_ellipse(sprite, (95, 205, 235), local)
-            pygame.draw.ellipse(
-                sprite, (210, 245, 255), (local.left + 6, local.top + 1, max(2, local.width * 0.4), max(2, local.height * 0.5))
-            )
-
-        return sprite
-
-    def update(self, speed):
-        self.x -= speed
-
-    def offscreen(self):
-        return self.x < -80
-
-    def rect(self):
-        if self.kind == "puddle":
-            return pygame.Rect(int(self.x), GROUND_Y - self.h + 4, self.w, self.h)
-        return pygame.Rect(int(self.x), GROUND_Y - self.h, self.w, self.h)
-
-    def draw(self, surface):
-        r = self.rect()
-        surface.blit(self.sprite, (r.x - self.PAD, r.y - self.PAD))
-
-
-class Coin:
+class Item:
     _sprite = None
-    RADIUS = 10
+    RADIUS = 12
 
-    def __init__(self, x, y):
+    def __init__(self, z, x):
+        self.z = z
         self.x = x
-        self.y = y
-        self.collected = False
-        self.radius = self.RADIUS
-        if Coin._sprite is None:
-            Coin._sprite = self._build_sprite()
+        self.pulse_timer = 0
+        if Item._sprite is None:
+            Item._sprite = self._build_sprite()
 
     @classmethod
     def _build_sprite(cls):
@@ -366,226 +323,59 @@ class Coin:
         sprite = pygame.Surface((size, size), pygame.SRCALPHA)
         center = (size // 2, size // 2)
         draw_outlined_circle(sprite, (255, 214, 64), center, r)
-        pygame.draw.circle(sprite, (255, 240, 150), (center[0] - 3, center[1] - 3), 3)
-        sx, sy = center[0] + 5, center[1] - 6
-        pygame.draw.line(sprite, WHITE, (sx - 3, sy), (sx + 3, sy), 2)
-        pygame.draw.line(sprite, WHITE, (sx, sy - 3), (sx, sy + 3), 2)
+        pygame.draw.circle(sprite, (255, 240, 150), (center[0] - 4, center[1] - 4), 4)
+        bolt = [(center[0] + 1, center[1] - 8), (center[0] - 5, center[1] + 1), (center[0], center[1] + 1),
+                (center[0] - 2, center[1] + 8), (center[0] + 6, center[1] - 2), (center[0] + 1, center[1] - 2)]
+        pygame.draw.polygon(sprite, (255, 255, 255), bolt)
+        pygame.draw.polygon(sprite, (150, 100, 10), bolt, 1)
         return sprite
 
-    def update(self, speed):
-        self.x -= speed
 
-    def offscreen(self):
-        return self.x < -30
-
-    def rect(self):
-        return pygame.Rect(int(self.x - self.radius), int(self.y - self.radius), self.radius * 2, self.radius * 2)
-
-    def draw(self, surface, t):
-        bob = math.sin(t * 0.15 + self.x * 0.05) * 4
-        sprite = Coin._sprite
-        surface.blit(sprite, (int(self.x - sprite.get_width() / 2), int(self.y + bob - sprite.get_height() / 2)))
-
-
-class Building:
-    PAD = 6
-
-    def __init__(self, x, w, h, color, layer):
-        self.x = x
-        self.w = w
-        self.h = h
-        self.color = color
-        self.layer = layer
-        self.sprite = self._build_sprite()
-
-    def _build_sprite(self):
-        pad = self.PAD
-        body_h = self.h + 80
-        sprite = pygame.Surface((self.w + pad * 2, body_h + pad * 2), pygame.SRCALPHA)
-        body_rect = pygame.Rect(pad, pad, self.w, body_h)
-
-        draw_outlined_rect(sprite, self.color, body_rect)
-
-        win_lit = (250, 235, 190)
-        rng = random.Random(int(self.x * 13 + self.w * 7 + self.h))
-        for wy in range(body_rect.top + 14, body_rect.bottom - 10, 22):
-            for wx in range(body_rect.left + 8, body_rect.right - 8, 18):
-                if rng.random() < 0.22:
-                    pygame.draw.rect(sprite, win_lit, (wx, wy, 6, 8))
-
-        return sprite
-
-    def update(self, speed):
-        self.x -= speed * self.layer
-
-    def draw(self, surface):
-        top = GROUND_Y - 60 - self.h
-        surface.blit(self.sprite, (self.x - self.PAD, top - self.PAD))
-
-
-class Tree:
-    def __init__(self, x, kind, scale):
-        self.x = x
-        self.kind = kind
-        self.scale = scale
-        self.sprite = self._build_sprite()
-
-    def _build_sprite(self):
-        if self.kind == "pine":
-            w, h = int(44 * self.scale), int(94 * self.scale)
-            pad = 6
-            surf = pygame.Surface((w + pad * 2, h + pad * 2), pygame.SRCALPHA)
-            trunk = pygame.Rect(pad + w // 2 - 4, pad + h - 16, 8, 16)
-            draw_outlined_rect(surf, (112, 80, 52), trunk)
-            layers = 4
-            base_green = (42, 118, 64)
-            for i in range(layers):
-                seg_h = (h - 18) // layers
-                top_y = pad + i * seg_h * 0.72
-                lw = w - i * (w // (layers + 2))
-                cx = pad + w // 2
-                pts = [(cx, top_y), (cx - lw // 2, top_y + seg_h), (cx + lw // 2, top_y + seg_h)]
-                draw_outlined_polygon(surf, shade(base_green, 1.0 + 0.1 * i), pts)
-            return surf
-
-        w, h = int(66 * self.scale), int(64 * self.scale)
-        pad = 6
-        surf = pygame.Surface((w + pad * 2, h + 28 + pad * 2), pygame.SRCALPHA)
-        trunk = pygame.Rect(pad + w // 2 - 4, pad + h - 4, 8, 26)
-        draw_outlined_rect(surf, (112, 80, 52), trunk)
-        blobs = [
-            (w * 0.3, h * 0.48, h * 0.32),
-            (w * 0.55, h * 0.28, h * 0.38),
-            (w * 0.78, h * 0.5, h * 0.28),
-            (w * 0.52, h * 0.62, h * 0.36),
-        ]
-        for bx, by, br in blobs:
-            rect = pygame.Rect(int(pad + bx - br), int(pad + by - br), int(br * 2), int(br * 2))
-            draw_outlined_ellipse(surf, (66, 158, 76), rect)
-        rng = random.Random(int(self.x * 11 + 7))
-        for _ in range(16):
-            bx, by, br = blobs[rng.randrange(len(blobs))]
-            dx = pad + bx + rng.uniform(-br * 0.6, br * 0.6)
-            dy = pad + by + rng.uniform(-br * 0.6, br * 0.6)
-            col = (92, 182, 96) if rng.random() < 0.5 else (48, 128, 58)
-            pygame.draw.circle(surf, col, (int(dx), int(dy)), 3)
-        return surf
-
-    def update(self, speed):
-        self.x -= speed * 0.55
-
-    def draw(self, surface):
-        surface.blit(self.sprite, (self.x, GROUND_Y - 55 - self.sprite.get_height()))
-
-
-class Mountains:
-    def __init__(self):
-        self.sprite = self._build()
-
-    def _build(self):
-        h = 90
-        w = WIDTH + 60
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        rng = random.Random(4242)
-        pts = [(0, h)]
-        x = 0
-        peaks = []
-        while x < w:
-            x += rng.randint(70, 120)
-            peak_h = rng.randint(28, h - 12)
-            peaks.append((x, h - peak_h))
-            pts.append((x, h - peak_h))
-        pts.append((w, h))
-        pygame.draw.polygon(surf, (150, 163, 196), pts)
-        for px, py in peaks:
-            pygame.draw.polygon(surf, (220, 226, 238), [(px - 9, py + 13), (px, py), (px + 9, py + 13)])
-        return surf
-
-    def draw(self, surface):
-        surface.blit(self.sprite, (-30, GROUND_Y - 150))
-
-
-def draw_fence(surface, scroll):
-    post_w, gap = 6, 34
-    for i in range(-1, WIDTH // gap + 2):
-        px = i * gap + scroll
-        base_y = seam_y(px)
-        post = pygame.Rect(int(px), int(base_y - 24), post_w, 26)
-        draw_outlined_rect(surface, (150, 120, 80), post)
-    for off in (-20, -8):
-        y0, y1 = seam_y(0) + off, seam_y(WIDTH) + off
-        pts = [(0, y0), (WIDTH, y1), (WIDTH, y1 + 5), (0, y0 + 5)]
-        pygame.draw.polygon(surface, (238, 232, 216), pts)
-        pygame.draw.polygon(surface, OUTLINE, pts, 1)
-
-
-class Cloud:
-    def __init__(self, x, y, scale):
-        self.x = x
-        self.y = y
-        self.scale = scale
-        self.sprite = self._build_sprite()
-
-    def _build_sprite(self):
-        w, h = int(90 * self.scale), int(40 * self.scale)
-        sprite = pygame.Surface((w, h + 10), pygame.SRCALPHA)
-        circles = [
-            (w * 0.28, h * 0.65, h * 0.5),
-            (w * 0.52, h * 0.42, h * 0.6),
-            (w * 0.78, h * 0.62, h * 0.45),
-        ]
-        for cx, cy, r in circles:
-            pygame.draw.circle(sprite, OUTLINE, (int(cx), int(cy)), int(r) + OUTLINE_W)
-        for cx, cy, r in circles:
-            pygame.draw.circle(sprite, WHITE, (int(cx), int(cy)), int(r))
-        return sprite
-
-    def update(self, speed):
-        self.x -= speed * 0.1
-
-    def draw(self, surface):
-        surface.blit(self.sprite, (self.x, self.y))
-
-
-class Rival:
-    def __init__(self, name, jersey_color, coat, mane, helmet, skill, lane_offset, phase_offset):
-        self.name = name
-        self.color = jersey_color
+class Racer:
+    def __init__(self, coat, mane, helmet, jersey, max_speed, x0, z0=0.0, name=None):
         self.coat = coat
         self.mane = mane
-        self.helmet = helmet
-        self.skill = skill
-        self.distance = 0.0
-        self.lane_offset = lane_offset
-        self.leg_phase = phase_offset
+        self.jockey = (helmet, jersey)
+        self.jersey = jersey
+        self.name = name
+        self.z = z0
+        self.x = x0
+        self.speed = 0.0
+        self.max_speed = max_speed
+        self.leg_phase = random.uniform(0, 6.28)
+        self.boost_timer = 0
+        self.jump_timer = 0
+        self.target_x = x0
+        self.retarget_timer = random.randint(10, 40)
 
-    def update(self, speed):
-        variance = random.uniform(-1.2, 1.4)
-        self.distance += (speed * self.skill + variance) * 0.12
-        if self.distance < 0:
-            self.distance = 0
-        self.leg_phase += 0.32 + speed * 0.028
+    @property
+    def lap(self):
+        return int(self.z // TRACK_LEN)
 
-    def screen_x(self, player_distance):
-        pace_offset = (self.distance - player_distance) * RIVAL_X_SCALE
-        pace_offset = max(-RIVAL_X_MAX_OFFSET, min(RIVAL_X_MAX_OFFSET, pace_offset))
-        depth_shift = self.lane_offset * RIVAL_DEPTH_SHEAR
-        return PLAYER_X + depth_shift + pace_offset
+    def physics_step(self, steer_input, accel_input):
+        if accel_input > 0:
+            self.speed += PLAYER_ACCEL
+        elif accel_input < 0:
+            self.speed -= PLAYER_BRAKE
+        else:
+            self.speed -= PLAYER_FRICTION
 
-    def draw(self, surface, player_distance):
-        x = self.screen_x(player_distance)
-        y = GROUND_Y + self.lane_offset
-        draw_horse(
-            surface,
-            x,
-            y,
-            self.coat,
-            self.mane,
-            self.leg_phase,
-            moving=True,
-            jockey_colors=(self.helmet, self.color),
-            ground_ref_y=y,
-        )
+        top_speed = self.max_speed * (BOOST_MULT if self.boost_timer > 0 else 1.0)
+        if abs(self.x) > HALF_ROAD_WIDTH:
+            top_speed *= OFFTRACK_PENALTY
+
+        self.speed = max(0.0, min(top_speed, self.speed))
+
+        steer_rate = PLAYER_STEER_RATE * (0.5 + 0.5 * min(1.0, self.speed / self.max_speed))
+        self.x += steer_input * steer_rate
+        self.x = max(-MAX_X_CLAMP, min(MAX_X_CLAMP, self.x))
+
+        self.z += self.speed
+        self.leg_phase += 0.25 + self.speed * 0.035
+        if self.boost_timer > 0:
+            self.boost_timer -= 1
+        if self.jump_timer > 0:
+            self.jump_timer -= 1
 
 
 class Game:
@@ -598,86 +388,37 @@ class Game:
         self.clock = pygame.time.Clock()
         self.font = load_korean_font(22)
         self.big_font = load_korean_font(46, bold=True)
+        self.rank_font = load_korean_font(30, bold=True)
 
-        self.sky = vertical_gradient((WIDTH, HEIGHT), SKY_TOP, SKY_HORIZON)
-        self.ground_surface = self._build_ground_surface()
-        self.mountains = Mountains()
+        self.sky = vertical_gradient((WIDTH, ROAD_TOP_Y + 20), SKY_TOP, SKY_HORIZON)
 
         self.reset()
 
-    def _build_ground_surface(self):
-        surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        draw_tilted_gradient(
-            surf, lambda x: GROUND_Y - 60, seam_y, shade(GROUND_GRASS, 1.15), shade(GROUND_GRASS, 0.8)
-        )
-        draw_tilted_gradient(
-            surf, seam_y, lambda x: HEIGHT, shade(ROAD, 1.25), shade(ROAD, 0.6)
-        )
-        return surf
-
     def reset(self):
-        self.player = Player()
-        self.obstacles = []
-        self.coins = []
-        self.buildings = []
-        self.trees = []
-        self.clouds = [
-            Cloud(random.uniform(0, WIDTH), random.uniform(20, 130), random.uniform(0.7, 1.3)) for _ in range(4)
-        ]
-        self.rivals = [
-            Rival(
-                "적토마", RIVAL_COLORS[0], RIVAL_COATS[0], RIVAL_MANES[0], RIVAL_HELMETS[0],
-                0.97, RIVAL_LANE_OFFSETS[0], 0.0,
-            ),
-            Rival(
-                "백마", RIVAL_COLORS[1], RIVAL_COATS[1], RIVAL_MANES[1], RIVAL_HELMETS[1],
-                1.0, RIVAL_LANE_OFFSETS[1], 1.4,
-            ),
-            Rival(
-                "흑마", RIVAL_COLORS[2], RIVAL_COATS[2], RIVAL_MANES[2], RIVAL_HELMETS[2],
-                1.03, RIVAL_LANE_OFFSETS[2], 2.6,
-            ),
-        ]
-        self.speed = BASE_SPEED
-        self.spawn_timer = 100
-        self.coin_timer = 40
-        self.time_elapsed = 0
+        self.player = Racer(PLAYER_COAT, PLAYER_MANE, PLAYER_JOCKEY[0], PLAYER_JOCKEY[1], PLAYER_MAX_SPEED, x0=-120)
+        self.ai_racers = []
+        start_xs = [120, -260, 260]
+        for i, spec in enumerate(AI_SPECS):
+            self.ai_racers.append(
+                Racer(spec["coat"], spec["mane"], spec["helmet"], spec["jersey"], spec["max_speed"], x0=start_xs[i], name=spec["name"])
+            )
+        self.items = self._build_items()
         self.state = "START"
-        self.score_coins = 0
+        self.rank = 4
+        self.time_elapsed = 0
         self.result_rank = None
-        self.road_scroll = 0
-        self.fence_scroll = 0
 
-        x = 0
-        while x < WIDTH + 220:
-            b = self.make_building(x)
-            self.buildings.append(b)
-            x += b.w + random.randint(20, 60)
+    def _build_items(self):
+        items = []
+        spacing = TRACK_LEN / ITEM_COUNT
+        for i in range(ITEM_COUNT):
+            z = spacing * i + spacing * 0.5
+            x = 380 if i % 2 == 0 else -380
+            items.append(Item(z, x))
+        return items
 
-        x = 0
-        while x < WIDTH + 200:
-            t = self.make_tree(x)
-            self.trees.append(t)
-            x += t.sprite.get_width() + random.randint(20, 70)
-
-    def make_building(self, x):
-        h = random.randint(50, 140)
-        w = random.randint(50, 100)
-        layer = random.uniform(0.12, 0.2)
-        color = random.choice(SKYLINE_COLORS)
-        return Building(x, w, h, color, layer)
-
-    def make_tree(self, x):
-        kind = random.choice(["pine", "pine", "round"])
-        scale = random.uniform(0.8, 1.35)
-        return Tree(x, kind, scale)
-
-    def spawn_obstacle(self):
-        self.obstacles.append(Obstacle(WIDTH + 40))
-
-    def spawn_coin(self):
-        y = GROUND_Y - random.choice([30, 70, 110])
-        self.coins.append(Coin(WIDTH + 40, y))
+    def all_racers(self):
+        return [self.player] + self.ai_racers
 
     def handle_start(self, event):
         if event.type == pygame.KEYDOWN and event.key in (pygame.K_SPACE, pygame.K_RETURN):
@@ -685,162 +426,224 @@ class Game:
             self.sound.play("select")
 
     def handle_playing_event(self, event):
-        if event.type == pygame.KEYDOWN and event.key in (pygame.K_SPACE, pygame.K_UP):
-            if self.player.on_ground:
-                self.player.jump()
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+            if self.player.jump_timer <= 0:
+                self.player.jump_timer = JUMP_DURATION
                 self.sound.play("jump")
 
-    def handle_gameover_event(self, event):
+    def handle_finish_event(self, event):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
             self.reset()
             self.sound.play("select")
 
-    def update_playing(self):
+    def update_playing(self, keys):
         self.time_elapsed += 1
-        self.speed = min(MAX_SPEED, BASE_SPEED + self.time_elapsed * SPEED_RAMP)
-        self.road_scroll = (self.road_scroll - self.speed) % 40
-        self.fence_scroll = (self.fence_scroll - self.speed) % 34
 
+        steer = 0
+        if keys[pygame.K_LEFT]:
+            steer -= 1
+        if keys[pygame.K_RIGHT]:
+            steer += 1
+        accel = 0
+        if keys[pygame.K_UP]:
+            accel = 1
+        elif keys[pygame.K_DOWN]:
+            accel = -1
         prev_leg_phase = self.player.leg_phase
-        was_on_ground = self.player.on_ground
-        self.player.update(self.speed)
-        if was_on_ground and self.player.on_ground:
+        self.player.physics_step(steer, accel)
+        if self.player.speed > 0.5:
             step_unit = math.pi / 2
             if int(self.player.leg_phase / step_unit) != int(prev_leg_phase / step_unit):
                 self.sound.play("step", volume=0.5)
 
-        for cl in self.clouds:
-            cl.update(self.speed)
-            if cl.x + cl.sprite.get_width() < -20:
-                cl.x = WIDTH + random.uniform(0, 100)
-                cl.y = random.uniform(20, 130)
+        racers = self.all_racers()
+        for ai in self.ai_racers:
+            ai.retarget_timer -= 1
+            if ai.retarget_timer <= 0:
+                ai.retarget_timer = random.randint(35, 80)
+                nearest, nearest_dist = None, 1e9
+                for other in racers:
+                    if other is ai:
+                        continue
+                    d = abs(other.z - ai.z)
+                    if d < nearest_dist:
+                        nearest, nearest_dist = other, d
+                if nearest is not None and nearest_dist < 500 and random.random() < 0.4:
+                    ai.target_x = max(-HALF_ROAD_WIDTH, min(HALF_ROAD_WIDTH, nearest.x + random.uniform(-60, 60)))
+                else:
+                    ai.target_x = random.uniform(-HALF_ROAD_WIDTH * 0.6, HALF_ROAD_WIDTH * 0.6)
+            steer_ai = max(-1.0, min(1.0, (ai.target_x - ai.x) / 60))
+            if random.random() < 0.003 and ai.jump_timer <= 0:
+                ai.jump_timer = JUMP_DURATION
+            ai.physics_step(steer_ai, 1)
 
-        for b in self.buildings:
-            b.update(self.speed)
-        self.buildings = [b for b in self.buildings if b.x + b.w > -20]
-        if not self.buildings or self.buildings[-1].x + self.buildings[-1].w < WIDTH:
-            last_x = self.buildings[-1].x + self.buildings[-1].w if self.buildings else WIDTH
-            self.buildings.append(self.make_building(last_x + random.randint(20, 60)))
+        for i in range(len(racers)):
+            for j in range(i + 1, len(racers)):
+                a, b = racers[i], racers[j]
+                if abs(a.z - b.z) < BUMP_Z_RANGE and abs(a.x - b.x) < BUMP_X_RANGE:
+                    push = BUMP_PUSH if a.x < b.x else -BUMP_PUSH
+                    a.x = max(-MAX_X_CLAMP, min(MAX_X_CLAMP, a.x - push))
+                    b.x = max(-MAX_X_CLAMP, min(MAX_X_CLAMP, b.x + push))
+                    a.speed *= BUMP_SLOWDOWN
+                    b.speed *= BUMP_SLOWDOWN
+                    if a is self.player or b is self.player:
+                        self.sound.play("bump", volume=0.5)
 
-        for t in self.trees:
-            t.update(self.speed)
-        self.trees = [t for t in self.trees if t.x + t.sprite.get_width() > -20]
-        if not self.trees or self.trees[-1].x + self.trees[-1].sprite.get_width() < WIDTH:
-            last_x = self.trees[-1].x + self.trees[-1].sprite.get_width() if self.trees else WIDTH
-            self.trees.append(self.make_tree(last_x + random.randint(20, 70)))
+        for item in self.items:
+            for r in racers:
+                if self._check_item_pickup(r, item):
+                    r.boost_timer = BOOST_DURATION
+                    if r is self.player:
+                        self.sound.play("boost")
 
-        self.spawn_timer -= 1
-        if self.spawn_timer <= 0:
-            self.spawn_obstacle()
-            self.spawn_timer = max(70, int(140 - self.speed * 5)) + random.randint(0, 25)
+        ranking = sorted(racers, key=lambda r: -r.z)
+        self.rank = ranking.index(self.player) + 1
 
-        self.coin_timer -= 1
-        if self.coin_timer <= 0:
-            self.spawn_coin()
-            self.coin_timer = random.randint(50, 100)
-
-        for o in self.obstacles:
-            o.update(self.speed)
-        self.obstacles = [o for o in self.obstacles if not o.offscreen()]
-
-        for c in self.coins:
-            c.update(self.speed)
-        self.coins = [c for c in self.coins if not c.offscreen() and not c.collected]
-
-        for rv in self.rivals:
-            rv.update(self.speed)
-
-        player_rect = self.player.rect()
-        for o in self.obstacles:
-            if player_rect.colliderect(o.rect()):
-                self.trigger_gameover()
-                return
-
-        for c in self.coins:
-            if not c.collected and player_rect.colliderect(c.rect()):
-                c.collected = True
-                self.score_coins += 1
-                self.sound.play("coin")
-
-        if self.player.distance >= FINISH_DISTANCE:
+        if self.player.z >= TRACK_LEN * LAPS_TO_WIN:
             self.trigger_finish()
 
-    def trigger_gameover(self):
-        self.state = "GAMEOVER"
-        self.result_rank = self.compute_rank()
-        self.sound.play("crash")
+    def _check_item_pickup(self, racer, item):
+        if racer.speed <= 0:
+            return False
+        if abs(racer.x - item.x) > ITEM_PICKUP_X:
+            return False
+        k = round((racer.z - item.z) / TRACK_LEN)
+        candidate = item.z + k * TRACK_LEN
+        return (racer.z - racer.speed) < candidate <= racer.z
 
     def trigger_finish(self):
         self.state = "FINISH"
-        self.result_rank = self.compute_rank()
+        self.result_rank = self.rank
         self.sound.play("finish")
 
-    def compute_rank(self):
-        ahead = sum(1 for rv in self.rivals if rv.distance > self.player.distance)
-        return ahead + 1
+    # --- rendering ---------------------------------------------------
 
-    def draw_background(self):
+    def world_to_screen(self, world_x, world_z, ref_z):
+        rel_z = world_z - ref_z
+        if rel_z <= NEAR_Z or rel_z > MAX_VISIBLE_Z:
+            return None
+        base_index = int((ref_z % TRACK_LEN) // SEGMENT_LENGTH) % NUM_SEGMENTS
+        seg_index = int((world_z % TRACK_LEN) // SEGMENT_LENGTH) % NUM_SEGMENTS
+        center_offset = TRACK_OFFSETS[seg_index] - TRACK_OFFSETS[base_index]
+        scale = CAMERA_DEPTH / rel_z
+        screen_x = WIDTH / 2 + (world_x + center_offset - self.player.x) * scale
+        row = (NEAR_Z * ROAD_ROWS) / rel_z - 1
+        screen_y = ROAD_TOP_Y + row
+        return screen_x, screen_y, scale
+
+    def draw_track_view(self):
         self.screen.blit(self.sky, (0, 0))
-        self.mountains.draw(self.screen)
-        for cl in self.clouds:
-            cl.draw(self.screen)
-        for b in self.buildings:
-            b.draw(self.screen)
-        for t in self.trees:
-            t.draw(self.screen)
+        pygame.draw.rect(self.screen, GRASS_COLOR_A, (0, ROAD_TOP_Y, WIDTH, ROAD_ROWS))
 
-        self.screen.blit(self.ground_surface, (0, 0))
-        for i in range(-1, WIDTH // 40 + 2):
-            lx = i * 40 + self.road_scroll
-            pygame.draw.rect(self.screen, ROAD_LINE, (lx, seam_y(lx) + 25, 22, 5))
-        draw_fence(self.screen, self.fence_scroll)
+        player_z = self.player.z
+        base_index = int((player_z % TRACK_LEN) // SEGMENT_LENGTH) % NUM_SEGMENTS
+        base_offset = TRACK_OFFSETS[base_index]
+
+        for row in range(ROAD_ROWS):
+            z_ahead = (NEAR_Z * ROAD_ROWS) / (row + 1)
+            world_z = player_z + z_ahead
+            seg_index = int((world_z % TRACK_LEN) // SEGMENT_LENGTH) % NUM_SEGMENTS
+            center_offset = TRACK_OFFSETS[seg_index] - base_offset
+            scale = CAMERA_DEPTH / z_ahead
+            half_w = HALF_ROAD_WIDTH * scale
+            screen_cx = WIDTH / 2 + (center_offset - self.player.x) * scale
+            y = ROAD_TOP_Y + row
+
+            stripe = seg_index % 2 == 0
+            road_col = ROAD_COLOR_A if stripe else ROAD_COLOR_B
+            rumble_col = RUMBLE_COLOR_A if stripe else RUMBLE_COLOR_B
+            grass_col = GRASS_COLOR_A if stripe else GRASS_COLOR_B
+
+            left = screen_cx - half_w
+            right = screen_cx + half_w
+            rumble_w = max(1.0, half_w * 0.12)
+
+            pygame.draw.rect(self.screen, grass_col, (0, y, WIDTH, 1))
+            pygame.draw.rect(self.screen, road_col, (left, y, right - left, 1))
+            pygame.draw.rect(self.screen, rumble_col, (left, y, rumble_w, 1))
+            pygame.draw.rect(self.screen, rumble_col, (right - rumble_w, y, rumble_w, 1))
+            if stripe:
+                dash_w = max(1.0, half_w * 0.045)
+                pygame.draw.rect(self.screen, WHITE, (screen_cx - dash_w / 2, y, dash_w, 1))
+
+    def draw_billboards(self, extra_racers=None):
+        billboards = []
+        for item in self.items:
+            proj = self.world_to_screen(item.x, item.z, self.player.z)
+            if proj:
+                billboards.append((proj[0] - self.player.z, proj, "item", item))
+
+        racers = extra_racers if extra_racers is not None else self.all_racers()
+        for r in racers:
+            if r is self.player:
+                continue
+            proj = self.world_to_screen(r.x, r.z, self.player.z)
+            if proj:
+                rel_z = r.z - self.player.z
+                billboards.append((rel_z, proj, "racer", r))
+
+        billboards.sort(key=lambda b: -b[0])
+
+        for rel_z, (screen_x, screen_y, scale), kind, obj in billboards:
+            if kind == "item":
+                s = max(0.15, min(3.0, scale * 10))
+                sprite = Item._sprite
+                w = max(2, int(sprite.get_width() * s))
+                h = max(2, int(sprite.get_height() * s))
+                scaled = pygame.transform.scale(sprite, (w, h))
+                self.screen.blit(scaled, (screen_x - w / 2, screen_y - h / 2))
+            else:
+                s = max(0.06, min(2.2, scale * 1.7))
+                sprite = render_racer_sprite(obj)
+                w = max(2, int(HORSE_CANVAS_W * s))
+                h = max(2, int(HORSE_CANVAS_H * s))
+                scaled = pygame.transform.scale(sprite, (w, h))
+                anchor_x = HORSE_CANVAS_ANCHOR_X / HORSE_CANVAS_W * w
+                anchor_y = HORSE_CANVAS_GROUND_Y / HORSE_CANVAS_H * h
+                self.screen.blit(scaled, (screen_x - anchor_x, screen_y - anchor_y))
+
+    def draw_player(self):
+        jump_offset = 0.0
+        if self.player.jump_timer > 0:
+            t = 1 - self.player.jump_timer / JUMP_DURATION
+            jump_offset = 4 * JUMP_HEIGHT_PX * t * (1 - t) * 1.6
+        px = WIDTH / 2 - HORSE_W * 1.35
+        py = HEIGHT - 46 - jump_offset
+        draw_horse(
+            self.screen, px, py, self.player.coat, self.player.mane, self.player.leg_phase,
+            moving=self.player.speed > 0.4, jockey_colors=self.player.jockey, ground_ref_y=HEIGHT - 46,
+        )
 
     def draw_hud(self):
-        bar_x, bar_y, bar_w, bar_h = 20, 14, WIDTH - 40, 96
-        panel_rect = pygame.Rect(0, 0, bar_w, bar_h)
-        s = pygame.Surface((bar_w, bar_h), pygame.SRCALPHA)
-        pygame.draw.rect(s, (255, 255, 255, 225), panel_rect, border_radius=10)
-        pygame.draw.rect(s, OUTLINE, panel_rect, width=3, border_radius=10)
-        self.screen.blit(s, (bar_x, bar_y))
+        panel = pygame.Rect(WIDTH - 150, 14, 136, 60)
+        s = pygame.Surface((panel.width, panel.height), pygame.SRCALPHA)
+        pygame.draw.rect(s, (255, 255, 255, 225), (0, 0, panel.width, panel.height), border_radius=10)
+        pygame.draw.rect(s, OUTLINE, (0, 0, panel.width, panel.height), width=3, border_radius=10)
+        self.screen.blit(s, panel.topleft)
 
-        entries = [("나", self.player.distance, PLAYER_COAT)]
-        for rv in self.rivals:
-            entries.append((rv.name, rv.distance, rv.color))
+        rank_text = self.rank_font.render(f"{self.rank}위 / 4", True, OUTLINE)
+        self.screen.blit(rank_text, rank_text.get_rect(center=(panel.centerx, panel.top + 22)))
+        lap_num = min(self.player.lap + 1, LAPS_TO_WIN)
+        lap_text = self.font.render(f"랩 {lap_num}/{LAPS_TO_WIN}", True, OUTLINE)
+        self.screen.blit(lap_text, lap_text.get_rect(center=(panel.centerx, panel.top + 46)))
 
-        row_h = bar_h // len(entries)
-        for i, (name, dist, color) in enumerate(entries):
-            y = bar_y + row_h // 2 + i * row_h
-            pygame.draw.circle(self.screen, color, (bar_x + 12, y), 5)
-            pygame.draw.circle(self.screen, OUTLINE, (bar_x + 12, y), 5, 1)
-            track_x = bar_x + 30
-            track_w = bar_w - 120
-            pygame.draw.rect(self.screen, OUTLINE, (track_x, y - 3, track_w, 6), 1)
-            fill = min(1.0, dist / FINISH_DISTANCE) * track_w
-            pygame.draw.rect(self.screen, color, (track_x, y - 3, max(2, fill), 6))
-            label = self.font.render(name, True, OUTLINE)
-            label_rect = label.get_rect(midleft=(track_x + track_w + 10, y))
-            self.screen.blit(label, label_rect)
-
-        dist_text = self.font.render(
-            f"거리: {int(self.player.distance)} / {FINISH_DISTANCE} m   코인: {self.score_coins}", True, BLACK
-        )
-        self.screen.blit(dist_text, (20, HEIGHT - 30))
+        if self.player.boost_timer > 0:
+            boost_text = self.font.render("부스트!", True, (255, 140, 0))
+            outline = self.font.render("부스트!", True, WHITE)
+            pos = (20, 20)
+            for ox, oy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+                self.screen.blit(outline, (pos[0] + ox, pos[1] + oy))
+            self.screen.blit(boost_text, pos)
 
     def draw_playing(self):
-        self.draw_background()
-        for o in self.obstacles:
-            o.draw(self.screen)
-        for c in self.coins:
-            c.draw(self.screen, self.time_elapsed)
-        for rv in reversed(self.rivals):
-            rv.draw(self.screen, self.player.distance)
-        self.player.draw(self.screen)
-        self.screen.blit(pixelate(self.screen), (0, 0))
+        self.draw_track_view()
+        self.draw_billboards()
+        self.draw_player()
         self.draw_hud()
 
     def draw_center_text(self, lines, y_start=170):
         y = y_start
-        for i, (text, font, color) in enumerate(lines):
+        for text, font, color in lines:
             surf = font.render(text, True, color)
             rect = surf.get_rect(center=(WIDTH // 2, y))
             outline = font.render(text, True, WHITE)
@@ -850,54 +653,31 @@ class Game:
             y += rect.height + 12
 
     def draw_start(self):
-        self.draw_background()
-        for rv in reversed(self.rivals):
-            rv.draw(self.screen, self.player.distance)
-        draw_horse(
-            self.screen,
-            PLAYER_X,
-            GROUND_Y,
-            PLAYER_COAT,
-            PLAYER_MANE,
-            pygame.time.get_ticks() * 0.01,
-            moving=True,
-            jockey_colors=PLAYER_JOCKEY,
-        )
-        self.screen.blit(pixelate(self.screen), (0, 0))
+        self.draw_track_view()
+        self.draw_billboards()
+        self.draw_player()
         self.draw_center_text(
             [
                 ("City Gallop: Horse Race", self.big_font, DARK),
-                ("도시를 질주하는 말 경주 게임", self.font, DARK),
-                ("SPACE / ENTER 로 시작 - SPACE 또는 위쪽 화살표로 점프", self.font, DARK),
+                ("3인칭 시점 말 경주 게임", self.font, DARK),
+                ("방향키로 조종, SPACE로 점프 - SPACE/ENTER 로 시작", self.font, DARK),
             ],
-            y_start=130,
-        )
-
-    def draw_gameover(self):
-        self.draw_playing()
-        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 150))
-        self.screen.blit(overlay, (0, 0))
-        self.draw_center_text(
-            [
-                ("충돌! 경주 실패", self.big_font, (255, 90, 90)),
-                (f"이동 거리: {int(self.player.distance)} m", self.font, WHITE),
-                (f"현재 순위: {self.result_rank}위 / 4", self.font, WHITE),
-                ("R 키를 눌러 다시 시작 - ESC 로 종료", self.font, WHITE),
-            ]
+            y_start=120,
         )
 
     def draw_finish(self):
-        self.draw_playing()
+        self.draw_track_view()
+        self.draw_billboards()
+        self.draw_player()
+        self.draw_hud()
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 150))
         self.screen.blit(overlay, (0, 0))
         rank_text = {1: "1위! 우승!", 2: "2위", 3: "3위", 4: "4위"}[self.result_rank]
         self.draw_center_text(
             [
-                ("결승선 통과!", self.big_font, (255, 215, 0)),
+                ("완주!", self.big_font, (255, 215, 0)),
                 (rank_text, self.font, WHITE),
-                (f"완주 시간: {self.time_elapsed // FPS}초   코인: {self.score_coins}개", self.font, WHITE),
                 ("R 키를 눌러 다시 시작 - ESC 로 종료", self.font, WHITE),
             ]
         )
@@ -914,18 +694,17 @@ class Game:
                     self.handle_start(event)
                 elif self.state == "PLAYING":
                     self.handle_playing_event(event)
-                elif self.state in ("GAMEOVER", "FINISH"):
-                    self.handle_gameover_event(event)
+                elif self.state == "FINISH":
+                    self.handle_finish_event(event)
 
             if self.state == "PLAYING":
-                self.update_playing()
+                keys = pygame.key.get_pressed()
+                self.update_playing(keys)
 
             if self.state == "START":
                 self.draw_start()
             elif self.state == "PLAYING":
                 self.draw_playing()
-            elif self.state == "GAMEOVER":
-                self.draw_gameover()
             elif self.state == "FINISH":
                 self.draw_finish()
 

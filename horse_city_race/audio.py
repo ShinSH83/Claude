@@ -51,10 +51,6 @@ def noise(duration, volume=0.4, fade=0.05, smoothing=0.0):
     return samples
 
 
-def silence(duration):
-    return array.array("h", [0] * max(0, int(SAMPLE_RATE * duration)))
-
-
 def concat(*parts):
     out = array.array("h")
     for p in parts:
@@ -97,19 +93,7 @@ class SoundBank:
 
     def _build(self):
         self.sounds["jump"] = to_sound(tone(320, 0.14, volume=0.5, freq_end=680, wave="triangle"))
-        self.sounds["coin"] = to_sound(
-            concat(
-                tone(880, 0.06, volume=0.45, wave="square"),
-                tone(1318, 0.09, volume=0.45, wave="square"),
-            )
-        )
         self.sounds["step"] = to_sound(noise(0.035, volume=0.22, fade=0.01, smoothing=0.6))
-        self.sounds["crash"] = to_sound(
-            mix(
-                tone(160, 0.28, volume=0.55, freq_end=45, wave="sine", fade=0.01),
-                concat(noise(0.14, volume=0.5, fade=0.02, smoothing=0.15), silence(0.14)),
-            )
-        )
         self.sounds["finish"] = to_sound(
             concat(
                 tone(523, 0.11, volume=0.4, wave="triangle"),
@@ -119,6 +103,13 @@ class SoundBank:
             )
         )
         self.sounds["select"] = to_sound(tone(500, 0.05, volume=0.35, freq_end=760, wave="square"))
+        self.sounds["bump"] = to_sound(
+            mix(
+                tone(130, 0.1, volume=0.4, freq_end=70, wave="sine", fade=0.005),
+                noise(0.06, volume=0.3, fade=0.01, smoothing=0.2),
+            )
+        )
+        self.sounds["boost"] = to_sound(tone(300, 0.18, volume=0.5, freq_end=900, wave="sine", fade=0.01))
 
     def play(self, name, volume=1.0):
         if not self.enabled:
