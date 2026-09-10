@@ -1,0 +1,100 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+}
+
+#game-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game-canvas {
+  width: min(100vw, 177.78vh);
+  height: min(100vh, 56.25vw);
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  background: #000;
+  cursor: crosshair;
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 8, 6, 0.92);
+  color: #e8e0d0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay h1 {
+  font-size: clamp(20px, 4vw, 36px);
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+  color: #d9b23c;
+}
+
+.overlay .brief {
+  max-width: 560px;
+  line-height: 1.6;
+  font-size: 14px;
+  color: #cfc6b4;
+}
+
+.controls-box {
+  margin: 18px 0;
+  padding: 14px 22px;
+  border: 1px solid #4b5320;
+  background: rgba(75, 83, 32, 0.15);
+}
+
+.controls-box h2 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #9fae5c;
+}
+
+.controls-box ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+button {
+  padding: 10px 28px;
+  font-size: 16px;
+  background: #4b5320;
+  color: #e8e0d0;
+  border: 2px solid #9fae5c;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+
+button:hover {
+  background: #5c6626;
+}

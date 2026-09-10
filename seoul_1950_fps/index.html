@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>서울 수복 작전 1950</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+
+    <div id="start-screen" class="overlay">
+      <h1>서울 수복 작전 1950</h1>
+      <p class="brief">
+        1950년, 국군 병사가 되어 북한군에게 점령된 서울 시가지에서 전투를 벌인다.<br/>
+        건물 잔해와 바리케이드 사이를 뚫고 서울을 수복하라.
+      </p>
+      <div class="controls-box">
+        <h2>조작법</h2>
+        <ul>
+          <li><b>W / A / S / D</b> — 전진 / 좌 이동 / 후진 / 우 이동</li>
+          <li><b>마우스</b> — 시점 회전 (클릭하여 마우스 잠금)</li>
+          <li><b>← / →</b> — 시점 회전 (키보드 대체 조작)</li>
+          <li><b>Shift</b> — 달리기</li>
+          <li><b>마우스 좌클릭</b> — 사격 (M1 개런드)</li>
+          <li><b>R</b> — 재장전</li>
+          <li><b>ESC</b> — 일시정지 / 마우스 잠금 해제</li>
+        </ul>
+      </div>
+      <button id="start-btn">작전 개시</button>
+    </div>
+
+    <div id="pause-screen" class="overlay hidden">
+      <h1>일시정지</h1>
+      <p>클릭하여 계속 진행</p>
+    </div>
+
+    <div id="gameover-screen" class="overlay hidden">
+      <h1>전사(戰死)</h1>
+      <p>부대가 당신의 뒤를 이어 서울로 진격한다...</p>
+      <button id="restart-btn">다시 시작</button>
+    </div>
+  </div>
+
+  <script src="js/map.js"></script>
+  <script src="js/textures.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/raycaster.js"></script>
+  <script src="js/hud.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
