@@ -1,0 +1,30 @@
+name: Build Horse Race Windows EXE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: horse_city_race
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build EXE
+        run: pyinstaller --onefile --noconsole --name CityGallopHorseRace main.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CityGallopHorseRace-windows
+          path: horse_city_race/dist/CityGallopHorseRace.exe
