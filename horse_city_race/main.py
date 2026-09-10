@@ -45,6 +45,13 @@ SKYLINE_COLORS = [
 ]
 
 RIVAL_COLORS = [(90, 110, 235), (235, 90, 90), (90, 195, 120)]
+RIVAL_COATS = [(150, 72, 46), (232, 228, 218), (58, 48, 44)]
+RIVAL_MANES = [(62, 32, 20), (198, 192, 180), (24, 20, 18)]
+RIVAL_HELMETS = [(255, 225, 70), (240, 245, 250), (230, 60, 60)]
+RIVAL_LANE_OFFSETS = [-8, -18, -28]
+RIVAL_BASE_STAGGER = [-45, -85, -125]
+RIVAL_X_SCALE = 0.8
+RIVAL_X_MAX_OFFSET = 200
 
 PLAYER_X = 140
 HORSE_W, HORSE_H = 78, 52
@@ -148,11 +155,13 @@ def draw_jockey(surface, x, y, body_h, helmet_color, jersey_color):
     draw_outlined_ellipse(surface, helmet_color, helmet_rect)
 
 
-def draw_horse(surface, x, y, coat, mane, leg_phase, ducking=False, moving=False, jockey_colors=None):
+def draw_horse(surface, x, y, coat, mane, leg_phase, ducking=False, moving=False, jockey_colors=None, ground_ref_y=None):
+    if ground_ref_y is None:
+        ground_ref_y = GROUND_Y
     body_h = HORSE_H - 14 if ducking else HORSE_H
     body_w = HORSE_W - 18
 
-    pygame.draw.ellipse(surface, shade(GROUND_GRASS, 0.7), (int(x) - 2, GROUND_Y - 6, HORSE_W, 10))
+    pygame.draw.ellipse(surface, shade(ROAD, 0.55), (int(x) - 2, ground_ref_y - 6, HORSE_W, 10))
 
     if moving:
         for i, dx in enumerate((16, 28, 40)):
@@ -520,17 +529,44 @@ class Cloud:
 
 
 class Rival:
-    def __init__(self, name, color, skill):
+    def __init__(self, name, jersey_color, coat, mane, helmet, skill, lane_offset, phase_offset, base_stagger):
         self.name = name
-        self.color = color
+        self.color = jersey_color
+        self.coat = coat
+        self.mane = mane
+        self.helmet = helmet
         self.skill = skill
         self.distance = 0.0
+        self.lane_offset = lane_offset
+        self.leg_phase = phase_offset
+        self.base_stagger = base_stagger
 
     def update(self, speed):
         variance = random.uniform(-1.2, 1.4)
         self.distance += (speed * self.skill + variance) * 0.12
         if self.distance < 0:
             self.distance = 0
+        self.leg_phase += 0.32 + speed * 0.028
+
+    def screen_x(self, player_distance):
+        offset = (self.distance - player_distance) * RIVAL_X_SCALE
+        offset = max(-RIVAL_X_MAX_OFFSET, min(RIVAL_X_MAX_OFFSET, offset))
+        return PLAYER_X + self.base_stagger + offset
+
+    def draw(self, surface, player_distance):
+        x = self.screen_x(player_distance)
+        y = GROUND_Y + self.lane_offset
+        draw_horse(
+            surface,
+            x,
+            y,
+            self.coat,
+            self.mane,
+            self.leg_phase,
+            moving=True,
+            jockey_colors=(self.helmet, self.color),
+            ground_ref_y=y,
+        )
 
 
 class Game:
@@ -561,9 +597,18 @@ class Game:
             Cloud(random.uniform(0, WIDTH), random.uniform(20, 130), random.uniform(0.7, 1.3)) for _ in range(4)
         ]
         self.rivals = [
-            Rival("적토마", RIVAL_COLORS[0], 0.97),
-            Rival("백마", RIVAL_COLORS[1], 1.0),
-            Rival("흑마", RIVAL_COLORS[2], 1.03),
+            Rival(
+                "적토마", RIVAL_COLORS[0], RIVAL_COATS[0], RIVAL_MANES[0], RIVAL_HELMETS[0],
+                0.97, RIVAL_LANE_OFFSETS[0], 0.0, RIVAL_BASE_STAGGER[0],
+            ),
+            Rival(
+                "백마", RIVAL_COLORS[1], RIVAL_COATS[1], RIVAL_MANES[1], RIVAL_HELMETS[1],
+                1.0, RIVAL_LANE_OFFSETS[1], 1.4, RIVAL_BASE_STAGGER[1],
+            ),
+            Rival(
+                "흑마", RIVAL_COLORS[2], RIVAL_COATS[2], RIVAL_MANES[2], RIVAL_HELMETS[2],
+                1.03, RIVAL_LANE_OFFSETS[2], 2.6, RIVAL_BASE_STAGGER[2],
+            ),
         ]
         self.speed = BASE_SPEED
         self.spawn_timer = 100
@@ -760,6 +805,8 @@ class Game:
             o.draw(self.screen)
         for c in self.coins:
             c.draw(self.screen, self.time_elapsed)
+        for rv in reversed(self.rivals):
+            rv.draw(self.screen, self.player.distance)
         self.player.draw(self.screen)
         self.screen.blit(pixelate(self.screen), (0, 0))
         self.draw_hud()
@@ -777,6 +824,8 @@ class Game:
 
     def draw_start(self):
         self.draw_background()
+        for rv in reversed(self.rivals):
+            rv.draw(self.screen, self.player.distance)
         draw_horse(
             self.screen,
             PLAYER_X,
